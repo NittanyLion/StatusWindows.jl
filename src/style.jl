@@ -58,7 +58,7 @@ Base.@kwdef struct Style
     dim::RGBA           = (0.55, 0.61, 0.70, 1.0)   # labels, rules
     accent::RGBA        = (0.35, 0.80, 0.95, 1.0)   # bars, headings
     warn::RGBA          = (0.95, 0.62, 0.25, 1.0)
-    bg::RGBA            = (0.05, 0.06, 0.09, 0.62)  # panel background
+    bg::RGBA            = (0.09, 0.065, 0.04, 0.85) # panel background
     pad::Float64        = 14.0                      # inner margin
     line::Float64       = 19.0                      # baseline-to-baseline
     radius::Float64     = 10.0                      # background corner radius

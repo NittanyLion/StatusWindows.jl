@@ -176,6 +176,13 @@ backend on Linux, which routes through XWayland on a Wayland session and
 makes placement work. Pass `force_x11 = false` to opt out — and expect the
 panel to land wherever the compositor likes.
 
+**HiDPI.** All geometry — `width`, `height`, `x`, `y`, `move!`, `resize!` —
+is in logical pixels, so a panel comes out roughly the same physical size on
+a 96 dpi monitor and on a 240 dpi one. `Panel` asks the window system for the
+monitor's content scale and draws at full device resolution, so text stays
+sharp rather than being magnified. Pass `scale = 1` to work in raw device
+pixels, or any other number to pin the factor yourself.
+
 **Transparency** requires a running compositor and is the one feature that
 occasionally no-ops on unusual drivers. Design the panel to look right
 opaque and treat transparency as a bonus; `Panel(transparent = false)` if
