@@ -57,6 +57,44 @@ draw!(p) do c
 end
 ```
 
+## Math
+
+`math!` draws LaTeX-ish notation: `_` and `^` become real subscripts and
+superscripts, and a few hundred commands map to their Unicode characters.
+
+```julia
+draw!(p) do c
+    heading!(c, "estimates")
+    math!(c, "\\sigma^2 = 0.37")
+    math!(c, "\\sum_{i=1}^n x_i \\leq \\infty")
+    math!(c, "x_{i+1}^{2n} \\to \\theta")
+    math!(c, "p \\ll 0.01"; color = c.style.accent, align = :right)
+end
+```
+
+This runs on Pango markup, not a TeX engine, which sets the ceiling:
+
+* **Works** — sub/superscripts with grouping, Greek, relations, arrows,
+  set and logic symbols, most binary operators.
+* **Does not** — fractions, radicals, matrices, limits stacked over a big
+  operator, or any real math spacing.
+* **Fails quietly** — a command outside the table is emitted verbatim, so
+  `\hat\beta` draws the literal text `\hat` followed by β. Nothing errors.
+  Check with `Cairo.tex2pango(s, size)` if unsure.
+
+For simple readouts, raw Unicode is often less trouble than markup —
+`text!(c, "σ² = 0.37")` needs no escaping, and the Julia REPL's LaTeX
+completions (`\sigma<tab>`) type the characters for you. `mathwidth` gives
+the pixel width `math!` would need, for laying things out by hand.
+
+If you need genuine typesetting — fractions, radicals, proper limits —
+neither of those will do. The route is
+[MathTeXEngine.jl](https://github.com/Kolaru/MathTeXEngine.jl), the pure-Julia
+LaTeX math layout engine behind Makie's `L"..."` strings: it parses a
+formula and hands back positioned glyphs, which you would rasterize onto
+the panel's Cairo surface yourself. That is real work and this package does
+not do it today.
+
 Colours, font and spacing come from `Style`:
 
 ```julia

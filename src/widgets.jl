@@ -66,6 +66,66 @@ function text!(c::Canvas, str::AbstractString;
 end
 
 """
+    math!(c::Canvas, tex; color, size, align)
+
+Draw a line of mathematical notation and advance the cursor.
+
+`tex` is LaTeX-ish: `_` and `^` become real subscripts and superscripts,
+and Cairo's token table maps a few hundred commands (`\\alpha`, `\\sum`,
+`\\leq`, `\\infty`, ...) to their Unicode characters. Braces group, so
+`x_{i+1}^{2n}` works.
+
+```julia
+math!(c, "\\sigma^2 = 0.37")
+math!(c, "\\sum_{i=1}^n x_i \\leq \\infty")
+```
+
+This is Pango markup underneath, not a TeX engine: there is no fraction,
+radical, matrix or limits-over-the-operator layout. See the README for
+what to reach for when you need those.
+
+Commands outside the table are passed through verbatim rather than
+raising, so `\\hat\\beta` draws a literal `\\hat` followed by β. Check
+anything unusual against [`Cairo.tex2pango`](@ref) before trusting it.
+
+Text is not escaped, so a literal `<`, `>` or `&` in `tex` will confuse
+Pango — write `\\lt`, `\\gt` and `\\&` instead.
+"""
+function math!(c::Canvas, tex::AbstractString;
+               color::RGBA = c.style.fg, size::Real = c.style.size,
+               align::Symbol = :left)
+    st = c.style
+    # Pango takes its font from a description string, not from the toy
+    # select_font_face API the other widgets use.
+    Cairo.set_font_face(c.cr, string(st.font, " ", size))
+    markup = Cairo.tex2pango(String(tex), Float64(size))
+
+    x, halign = if align === :right
+        c.w - st.pad, "right"
+    elseif align === :center
+        c.w / 2, "center"
+    else
+        st.pad, "left"
+    end
+
+    setcolor!(c.cr, color)
+    Cairo.text(c.cr, x, c.y, markup; markup = true,
+               halign = halign, valign = "top")
+    c.y += max(st.line, Cairo.textheight(c.cr, markup, true))
+    return c
+end
+
+"""
+    mathwidth(c::Canvas, tex; size = c.style.size)
+
+Width in pixels that [`math!`](@ref) would need for `tex`.
+"""
+function mathwidth(c::Canvas, tex::AbstractString; size::Real = c.style.size)
+    Cairo.set_font_face(c.cr, string(c.style.font, " ", size))
+    return Cairo.textwidth(c.cr, Cairo.tex2pango(String(tex), Float64(size)), true)
+end
+
+"""
     heading!(c::Canvas, str)
 
 A section title in the accent colour, underlined by a rule.

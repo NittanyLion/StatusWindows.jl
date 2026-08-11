@@ -57,6 +57,32 @@ painted(buf) = count(!=(0), buf)
         end
     end
 
+    @testset "math" begin
+        buf, _, c = testcanvas()
+
+        y, px = c.y, painted(buf)
+        math!(c, "\\sigma^2 = 0.37")
+        @test c.y > y
+        @test painted(buf) > px
+
+        # Cairo's token table turns commands into Unicode, and _/^ into
+        # real Pango sub/superscripts.
+        markup = Cairo.tex2pango("x_i^2 + \\alpha", 13.0)
+        @test occursin("<sub>", markup)
+        @test occursin("<sup>", markup)
+        @test occursin("α", markup)
+        @test !occursin("\\alpha", markup)
+
+        # Braces group rather than leaking into the output.
+        grouped = Cairo.tex2pango("x_{i+1}", 13.0)
+        @test occursin("i+1", grouped)
+        @test !occursin("{", grouped)
+
+        @test mathwidth(c, "\\sum_{i=1}^n x_i") > mathwidth(c, "x")
+        @test math!(c, "\\infty"; align = :right) === c
+        @test math!(c, "\\mu \\pm 2\\sigma"; align = :center) === c
+    end
+
     @testset "font metrics" begin
         _, _, c = testcanvas()
         StatusWindows.setfont!(c)
