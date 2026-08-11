@@ -1,0 +1,13 @@
+name = "Conkyish"
+uuid = "d840e262-561b-4f0a-ad6b-4e7072e8d0fa"
+authors = ["Joris Pinkse <pinkse@gmail.com> and contributors"]
+version = "1.0.0-DEV"
+
+[compat]
+julia = "1.12"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
