@@ -97,7 +97,7 @@ function math!(c::Canvas, tex::AbstractString;
     st = c.style
     # Pango takes its font from a description string, not from the toy
     # select_font_face API the other widgets use.
-    Cairo.set_font_face(c.cr, string(st.font, " ", size))
+    Cairo.set_font_face(c.cr, string(mathfontof(st), " ", size))
     markup = Cairo.tex2pango(String(tex), Float64(size))
 
     x, halign = if align === :right
@@ -116,12 +116,55 @@ function math!(c::Canvas, tex::AbstractString;
 end
 
 """
+    texmath!(c::Canvas, tex; color, size, align)
+
+Draw real TeX math — fractions, radicals, limits stacked over big
+operators — and advance the cursor.
+
+This needs [MathTeXEngine.jl](https://github.com/Kolaru/MathTeXEngine.jl),
+which is a weak dependency: the method only exists once you load it.
+
+```julia
+using StatusWindows, MathTeXEngine   # both, in either order
+
+draw!(p) do c
+    texmath!(c, raw"\\frac{\\alpha}{\\beta} + \\sqrt{x^2}")
+end
+```
+
+Unlike [`math!`](@ref) this is a genuine TeX layout engine, and it carries
+its own fonts, so it renders identically on machines with no math fonts
+installed. It is heavier: glyphs are rasterized and composited one at a
+time, which is fine at the once-a-second refresh a panel runs at.
+
+Prefer `math!` for plain sub/superscript notation — it is cheaper, and it
+picks up the panel's own font.
+"""
+texmath!(args...; kwargs...) = error("""
+    StatusWindows: texmath! needs MathTeXEngine.jl.
+
+        using Pkg; Pkg.add("MathTeXEngine")
+        using MathTeXEngine
+
+    loads the extension that defines it. For sub/superscript notation
+    without the extra dependency, use math! instead.""")
+
+"""
+    texwidth(c::Canvas, tex; size)
+
+Width in pixels that [`texmath!`](@ref) would need for `tex`. Like
+`texmath!`, this comes from the MathTeXEngine extension.
+"""
+texwidth(args...; kwargs...) =
+    error("StatusWindows: texwidth needs MathTeXEngine.jl — `using MathTeXEngine`.")
+
+"""
     mathwidth(c::Canvas, tex; size = c.style.size)
 
 Width in pixels that [`math!`](@ref) would need for `tex`.
 """
 function mathwidth(c::Canvas, tex::AbstractString; size::Real = c.style.size)
-    Cairo.set_font_face(c.cr, string(c.style.font, " ", size))
+    Cairo.set_font_face(c.cr, string(mathfontof(c.style), " ", size))
     return Cairo.textwidth(c.cr, Cairo.tex2pango(String(tex), Float64(size)), true)
 end
 

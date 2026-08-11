@@ -8,15 +8,26 @@ Cairo = "159f3aea-2a34-519c-b102-8c37f9878175"
 GLFW = "f7f18e0c-5ee9-5ccd-a5bf-e8befd85ed98"
 ModernGL = "66fc600b-dfda-50eb-8b99-91cfa97b1301"
 
+[weakdeps]
+FreeTypeAbstraction = "663a7486-cb36-511b-a19d-713bb74d65c9"
+MathTeXEngine = "0a4f8689-d25c-4efe-a92b-7142dfc1aa53"
+
+[extensions]
+StatusWindowsMathTeXExt = ["MathTeXEngine", "FreeTypeAbstraction"]
+
 [compat]
 Cairo = "1.1.1"
+FreeTypeAbstraction = "0.10.8"
 GLFW = "3.4.6"
+MathTeXEngine = "0.6.9"
 ModernGL = "1.1.8"
 julia = "1.10"
 
 [extras]
 Cairo = "159f3aea-2a34-519c-b102-8c37f9878175"
+FreeTypeAbstraction = "663a7486-cb36-511b-a19d-713bb74d65c9"
+MathTeXEngine = "0a4f8689-d25c-4efe-a92b-7142dfc1aa53"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test", "Cairo"]
+test = ["Test", "Cairo", "MathTeXEngine", "FreeTypeAbstraction"]

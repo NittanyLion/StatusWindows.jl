@@ -87,13 +87,65 @@ For simple readouts, raw Unicode is often less trouble than markup —
 completions (`\sigma<tab>`) type the characters for you. `mathwidth` gives
 the pixel width `math!` would need, for laying things out by hand.
 
-If you need genuine typesetting — fractions, radicals, proper limits —
-neither of those will do. The route is
-[MathTeXEngine.jl](https://github.com/Kolaru/MathTeXEngine.jl), the pure-Julia
-LaTeX math layout engine behind Makie's `L"..."` strings: it parses a
-formula and hands back positioned glyphs, which you would rasterize onto
-the panel's Cairo surface yourself. That is real work and this package does
-not do it today.
+`math!` picks its font automatically: the best installed math font
+(STIX Two Math, Latin Modern Math, ...), falling back to the panel's body
+font when none is present, so it works everywhere and looks better where
+it can. `Style(mathfont = "...")` overrides that — and because naming a
+font is a request rather than a preference, naming one you do not have
+warns instead of silently substituting. `fontfamilies()` lists what Pango
+can actually use here.
+
+### Real typesetting
+
+For fractions, radicals and limits stacked over big operators, load
+[MathTeXEngine.jl](https://github.com/Kolaru/MathTeXEngine.jl) and use
+`texmath!`:
+
+```julia
+using StatusWindows, MathTeXEngine   # both, in either order
+
+draw!(p) do c
+    texmath!(c, raw"\frac{\alpha}{\beta} + \sqrt{x^2}")
+    texmath!(c, raw"\sum_{i=1}^{n} x_i^2")
+    texmath!(c, raw"\hat{\beta} = (X^TX)^{-1}X^Ty")
+end
+```
+
+MathTeXEngine is a **weak dependency**: it is not installed with this
+package, and `texmath!` does not exist until you load it — at which point
+a package extension supplies it. Nobody pays for a TeX engine to draw
+`σ² = 0.37`.
+
+It is also the *more portable* of the two paths, which is not obvious.
+MathTeXEngine ships its own fonts and rasterizes through FreeType, so it
+bypasses fontconfig entirely and renders identically on a machine with no
+math fonts installed. The lightweight Pango path is the one with an
+environment dependency. Use `texmath!` when the notation matters or the
+machine is unknown, `math!` when you want cheap sub/superscripts in the
+panel's own font.
+
+## Printing and export
+
+Nothing in the drawing layer knows it is talking to a screen, so the same
+content function can be aimed at a file:
+
+```julia
+render(p, "panel.pdf")                    # a live panel's content
+render("report.svg"; width = 300) do c    # or any draw function
+    heading!(c, "report")
+    kv!(c, "n", 1024)
+end
+```
+
+`.pdf`, `.svg` and `.eps`/`.ps` give real vector output with **live,
+selectable text** — not a screenshot — and `.png` gives a bitmap. No
+window, GL context or display is involved, so this works headless and on
+CI. Vector surfaces measure in points, so a 300×220 render is about
+4.2×3.1 inches.
+
+`render` defaults to `printstyle()`: white ground, dark ink, square
+corners. The on-screen palette is designed to sit on a wallpaper and turns
+into an ink-hungry black rectangle on paper.
 
 Colours, font and spacing come from `Style`:
 

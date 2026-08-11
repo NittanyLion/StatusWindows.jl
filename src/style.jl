@@ -2,6 +2,44 @@
 
 const RGBA = NTuple{4,Float64}
 
+# --- font discovery -----------------------------------------------------
+
+const _FAMILIES = Ref{Union{Nothing,Vector{String}}}(nothing)
+const _WARNED = Set{String}()
+
+"""
+    fontfamilies() -> Vector{String}
+
+Every font family Pango can actually use on this machine, sorted.
+
+This is the list that matters for [`math!`](@ref): Pango resolves families
+by name through fontconfig, and a name that is not on this list gets
+silently substituted rather than raising. Cached after the first call.
+"""
+function fontfamilies()
+    _FAMILIES[] === nothing || return _FAMILIES[]
+    fm = ccall((:pango_cairo_font_map_get_default, Cairo.libpangocairo),
+               Ptr{Nothing}, ())
+    ref = Ref{Ptr{Ptr{Nothing}}}()
+    n = Ref{Cint}(0)
+    ccall((:pango_font_map_list_families, Cairo.libpango), Nothing,
+          (Ptr{Nothing}, Ptr{Ptr{Ptr{Nothing}}}, Ptr{Cint}), fm, ref, n)
+    names = String[unsafe_string(ccall((:pango_font_family_get_name, Cairo.libpango),
+                                       Cstring, (Ptr{Nothing},), f))
+                   for f in unsafe_wrap(Array, ref[], n[])]
+    ccall((:g_free, Cairo.libglib), Nothing, (Ptr{Nothing},), ref[])
+    return _FAMILIES[] = sort!(names)
+end
+
+"""
+Math fonts worth using, best first. Whichever is installed wins; if none
+are, [`math!`](@ref) falls back to the panel's body font, which still
+renders Greek and the common operators.
+"""
+const MATH_FONTS = ["STIX Two Math", "Latin Modern Math", "TeX Gyre Termes Math",
+                    "TeX Gyre Pagella Math", "DejaVu Math TeX Gyre",
+                    "Noto Sans Math", "Asana Math"]
+
 """
     Style(; kwargs...)
 
@@ -14,6 +52,7 @@ look where only the text floats over the wallpaper.
 """
 Base.@kwdef struct Style
     font::String        = "DejaVu Sans Mono"
+    mathfont::String    = ""                        # "" selects automatically
     size::Float64       = 13.0
     fg::RGBA            = (0.88, 0.92, 0.96, 1.0)   # body text
     dim::RGBA           = (0.55, 0.61, 0.70, 1.0)   # labels, rules
@@ -49,6 +88,34 @@ Canvas(cr::CairoContext, style::Style, w::Real, h::Real) =
 
 "Width available between the left and right margins."
 content_width(c::Canvas) = c.w - 2 * c.style.pad
+
+"""
+    mathfontof(st::Style) -> String
+
+Family [`math!`](@ref) should draw with.
+
+An empty `st.mathfont` means "pick the best installed math font, and fall
+back to the body font if there is none" — so a machine with STIX gets STIX
+and a bare one still works. Naming a font explicitly is a request rather
+than a preference, so a missing one warns (once) instead of silently
+substituting.
+"""
+function mathfontof(st::Style)
+    if !isempty(st.mathfont)
+        if !(st.mathfont in fontfamilies()) && !(st.mathfont in _WARNED)
+            push!(_WARNED, st.mathfont)
+            @warn """Math font "$(st.mathfont)" is not installed; fontconfig \
+                     will substitute something else. See fontfamilies() for \
+                     what is available.""" maxlog=1
+        end
+        return st.mathfont
+    end
+    fams = fontfamilies()
+    for f in MATH_FONTS
+        f in fams && return f
+    end
+    return st.font
+end
 
 "Apply an `RGBA` tuple to the context."
 setcolor!(cr::CairoContext, col::RGBA) = set_source_rgba(cr, col...)

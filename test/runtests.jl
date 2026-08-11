@@ -1,4 +1,5 @@
 using StatusWindows
+using MathTeXEngine
 using StatusWindows: Canvas, content_width, ascent, advance, paint_background!
 using Cairo
 using Test
@@ -118,6 +119,79 @@ painted(buf) = count(!=(0), buf)
         paint_background!(c.cr, c.style, 64, 64)
         Cairo.finish(surface)
         @test painted(buf) > 0
+    end
+
+    @testset "font discovery" begin
+        fams = fontfamilies()
+        @test !isempty(fams)
+        @test issorted(fams)
+        @test fams === fontfamilies()          # cached, same object back
+        @test !("Nonexistent Font XYZ" in fams)
+
+        # Empty mathfont auto-selects: a known math font when one is
+        # installed, otherwise the body font. Both are valid outcomes, so
+        # assert the invariant rather than a specific family.
+        st = Style()
+        chosen = StatusWindows.mathfontof(st)
+        @test chosen in StatusWindows.MATH_FONTS || chosen == st.font
+
+        # An explicitly named font is honoured verbatim...
+        @test StatusWindows.mathfontof(Style(mathfont = "DejaVu Sans")) == "DejaVu Sans"
+        # ...but a missing one warns rather than silently substituting.
+        @test_logs (:warn, r"not installed") StatusWindows.mathfontof(
+            Style(mathfont = "Nonexistent Font XYZ"))
+    end
+
+    @testset "render to file" begin
+        content = c -> (heading!(c, "report"); kv!(c, "n", 1024); bar!(c, "cpu", 0.4))
+
+        mktempdir() do dir
+            for ext in ("pdf", "svg", "png")
+                path = joinpath(dir, "panel." * ext)
+                @test render(content, path; width = 300, height = 200) == path
+                @test filesize(path) > 0
+            end
+
+            # PDF keeps live text rather than outlining it.
+            pdf = read(joinpath(dir, "panel.pdf"), String)
+            @test startswith(pdf, "%PDF")
+
+            svg = read(joinpath(dir, "panel.svg"), String)
+            @test occursin("<svg", svg)
+
+            @test_throws ArgumentError render(content, joinpath(dir, "x.docx"))
+        end
+    end
+
+    @testset "printstyle" begin
+        ps = printstyle()
+        @test ps.bg == (1.0, 1.0, 1.0, 1.0)     # opaque white for paper
+        @test ps.fg[1] < 0.5                    # dark ink
+        @test ps.radius == 0.0
+        @test printstyle(size = 9.0).size == 9.0
+    end
+
+    @testset "MathTeXEngine extension" begin
+        @test Base.get_extension(StatusWindows, :StatusWindowsMathTeXExt) !== nothing
+
+        buf, _, c = testcanvas()
+        y, px = c.y, painted(buf)
+        texmath!(c, raw"\frac{\alpha}{\beta}")
+        @test c.y > y
+        @test painted(buf) > px
+
+        # Real layout: a fraction is taller than its numerator alone, and a
+        # sum with limits is taller than a bare sigma.
+        _, _, c2 = testcanvas()
+        tall = let y0 = c2.y; texmath!(c2, raw"\frac{\alpha}{\beta}"); c2.y - y0 end
+        _, _, c3 = testcanvas()
+        flat = let y0 = c3.y; texmath!(c3, raw"\alpha"); c3.y - y0 end
+        @test tall > flat
+
+        @test texwidth(c, raw"\frac{1}{2}") > 0
+        @test texwidth(c, raw"xxxxx") > texwidth(c, raw"x")
+        @test texmath!(c, raw"\sqrt{x^2}"; align = :right) === c
+        @test texmath!(c, raw"\int_0^\infty"; align = :center) === c
     end
 
     @testset "Style is constructible and overridable" begin
