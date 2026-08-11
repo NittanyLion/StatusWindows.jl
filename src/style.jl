@@ -56,8 +56,8 @@ Base.@kwdef struct Style
     size::Float64       = 13.0
     fg::RGBA            = (0.88, 0.92, 0.96, 1.0)   # body text
     dim::RGBA           = (0.55, 0.61, 0.70, 1.0)   # labels, rules
-    accent::RGBA        = (0.35, 0.80, 0.95, 1.0)   # bars, headings
-    warn::RGBA          = (0.95, 0.62, 0.25, 1.0)
+    accent::RGBA        = (0.95, 0.65, 0.25, 1.0)   # bars, headings
+    warn::RGBA          = (0.93, 0.35, 0.22, 1.0)   # must not read as accent
     bg::RGBA            = (0.09, 0.065, 0.04, 0.85) # panel background
     pad::Float64        = 14.0                      # inner margin
     line::Float64       = 19.0                      # baseline-to-baseline
