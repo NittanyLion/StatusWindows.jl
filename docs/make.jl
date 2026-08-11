@@ -1,14 +1,14 @@
-using Conkyish
+using StatusWindows
 using Documenter
 
-DocMeta.setdocmeta!(Conkyish, :DocTestSetup, :(using Conkyish); recursive=true)
+DocMeta.setdocmeta!(StatusWindows, :DocTestSetup, :(using StatusWindows); recursive=true)
 
 makedocs(;
-    modules=[Conkyish],
+    modules=[StatusWindows],
     authors="Joris Pinkse <pinkse@gmail.com> and contributors",
-    sitename="Conkyish.jl",
+    sitename="StatusWindows.jl",
     format=Documenter.HTML(;
-        canonical="https://NittanyLion.github.io/Conkyish.jl",
+        canonical="https://NittanyLion.github.io/StatusWindows.jl",
         edit_link="main",
         assets=String[],
     ),
@@ -18,6 +18,6 @@ makedocs(;
 )
 
 deploydocs(;
-    repo="github.com/NittanyLion/Conkyish.jl",
+    repo="github.com/NittanyLion/StatusWindows.jl",
     devbranch="main",
 )

@@ -1,14 +1,14 @@
 ```@meta
-CurrentModule = Conkyish
+CurrentModule = StatusWindows
 ```
 
-# Conkyish
+# StatusWindows
 
-Documentation for [Conkyish](https://github.com/NittanyLion/Conkyish.jl).
+Documentation for [StatusWindows](https://github.com/NittanyLion/StatusWindows.jl).
 
 ```@index
 ```
 
 ```@autodocs
-Modules = [Conkyish]
+Modules = [StatusWindows]
 ```

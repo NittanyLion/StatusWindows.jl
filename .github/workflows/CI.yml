@@ -60,6 +60,6 @@ jobs:
         shell: julia --project=docs --color=yes {0}
         run: |
           using Documenter: DocMeta, doctest
-          using Conkyish
-          DocMeta.setdocmeta!(Conkyish, :DocTestSetup, :(using Conkyish); recursive=true)
-          doctest(Conkyish)
+          using StatusWindows
+          DocMeta.setdocmeta!(StatusWindows, :DocTestSetup, :(using StatusWindows); recursive=true)
+          doctest(StatusWindows)
