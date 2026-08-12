@@ -245,6 +245,10 @@ painted(buf) = count(!=(0), buf)
             @test hasdisplay()
         end
 
+        # JULIA_GLFW_PLATFORM=null is the promise that no display is needed;
+        # it overrides everything, even a session that has one.
+        @test withenv(hasdisplay, "JULIA_GLFW_PLATFORM" => "null") == false
+
         # Every method has to survive a panel with no window behind it,
         # because that is the whole point: a desktop script runs to the end
         # on a server instead of stopping at the first call.

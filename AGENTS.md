@@ -8,7 +8,11 @@ a Cairo image surface drawn in Julia, uploaded to a GL texture each tick.
 **GLFW initializes when it is loaded, not when you use it.** `GLFW.jl`'s own
 `__init__` calls `glfwInit()` and throws if it fails, so merely running
 `using StatusWindows` needs a display. Nothing in this package can catch
-that. CI starts Xvfb before any Julia runs; see `.github/workflows/CI.yml`.
+that; the escape hatch is `JULIA_GLFW_PLATFORM=null` in the environment,
+which GLFW.jl honors and which `hasdisplay()` reads as "headless" so panels
+come back inert rather than tripping over OSMesa. CI instead starts Xvfb
+before any Julia runs, because it wants real windows; see
+`.github/workflows/CI.yml`.
 
 **The test suite must stay headless.** Tests draw into a bare Cairo image
 surface — no window, no GL context (`test/runtests.jl`, `testcanvas`).

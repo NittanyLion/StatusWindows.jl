@@ -213,10 +213,23 @@ end
 run!(p)                 # returns immediately if there is no display
 ```
 
-One caveat this cannot cover: `using StatusWindows` itself needs a display,
+One caveat lives upstream: `using StatusWindows` itself needs a display,
 because GLFW.jl calls `glfwInit()` from its own `__init__` and throws when
-that fails — before any code here runs. On a headless Linux box, start an
-Xvfb (see `.github/workflows/CI.yml`) or the import fails.
+that fails — before any code here runs. The fix is one environment variable:
+
+```sh
+JULIA_GLFW_PLATFORM=null julia script.jl
+```
+
+GLFW then initializes its windowless null backend, the import succeeds, and
+`hasdisplay()` answers `false`, so every `Panel` comes back inert as above.
+The variable is safe to set unconditionally — on a machine that does have a
+display it simply means no panels appear — which suits a script deployed to
+both kinds of machine. Set it before Julia starts (or in `ENV` before
+`using StatusWindows`); by panel-creation time it is too late.
+
+To run real windows on a machine without a display — CI does, to exercise
+actual GL — start an Xvfb instead (see `.github/workflows/CI.yml`).
 
 
 ## Platform notes

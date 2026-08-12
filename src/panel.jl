@@ -67,6 +67,8 @@ _pair(v) = hasproperty(v, :width)  ? (Int(v.width), Int(v.height)) :
            hasproperty(v, :x)      ? (Int(v.x), Int(v.y)) :
                                      (Int(v[1]), Int(v[2]))
 
+# The null backend could technically open OSMesa "windows", but nobody sets
+# the variable wanting one; read it as a promise that no display is needed.
 """
     hasdisplay() -> Bool
 
@@ -75,9 +77,16 @@ Whether this process could actually put a window on a screen.
 On Linux that means an X or Wayland session is reachable. macOS and Windows
 have a window server whenever a user session does, and offer nothing as
 cheap to test, so they answer `true` and let window creation be the judge.
+
+`JULIA_GLFW_PLATFORM=null` in the environment forces `false` everywhere. It
+is the variable that makes `using StatusWindows` survive a machine with no
+display — GLFW.jl reads it at load time and initializes its windowless null
+backend instead of throwing — so honoring it here means setting it always
+yields inert panels, whether or not a display happens to be present.
 """
-hasdisplay() = !Sys.islinux() ||
-               haskey(ENV, "DISPLAY") || haskey(ENV, "WAYLAND_DISPLAY")
+hasdisplay() = get(ENV, "JULIA_GLFW_PLATFORM", "") != "null" &&
+               (!Sys.islinux() ||
+                haskey(ENV, "DISPLAY") || haskey(ENV, "WAYLAND_DISPLAY"))
 
 # GLFW.Window wraps a Ptr but defines no == against one, so comparing the
 # window itself to C_NULL is always true. Reach for the handle.
