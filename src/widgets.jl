@@ -66,6 +66,113 @@ function text!(c::Canvas, str::AbstractString;
 end
 
 """
+    poormansmath!(c::Canvas, tex; color, size, align)
+
+Draw a line of mathematical notation with no dependency beyond Cairo, and
+advance the cursor.
+
+`tex` is LaTeX-ish: `_` and `^` become real subscripts and superscripts,
+and Cairo's token table maps a few hundred commands (`\\alpha`, `\\sum`,
+`\\leq`, `\\infty`, ...) to their Unicode characters. Braces group, so
+`x_{i+1}^{2n}` works.
+
+```julia
+poormansmath!(c, "\\sigma^2 = 0.37")
+poormansmath!(c, "\\sum_{i=1}^n x_i \\leq \\infty")
+```
+
+This is Pango markup underneath, not a TeX engine, and the name is a
+warning: there is no fraction, radical, matrix or limits-over-the-operator
+layout, and the result depends on which fonts the machine happens to have.
+[`math!`](@ref) does the job properly; this is what you get for free.
+
+Commands outside the table are passed through verbatim rather than
+raising, so `\\hat\\beta` draws a literal `\\hat` followed by β. Check
+anything unusual against `Cairo.tex2pango` before trusting it.
+
+Text is not escaped, so a literal `<`, `>` or `&` in `tex` will confuse
+Pango — write `\\lt`, `\\gt` and `\\&` instead.
+"""
+function poormansmath!(c::Canvas, tex::AbstractString;
+                       color::RGBA = c.style.fg, size::Real = c.style.size,
+                       align::Symbol = :left)
+    st = c.style
+    # Pango takes its font from a description string, not from the toy
+    # select_font_face API the other widgets use.
+    Cairo.set_font_face(c.cr, string(mathfontof(st), " ", size))
+    markup = Cairo.tex2pango(String(tex), Float64(size))
+
+    x, halign = if align === :right
+        c.w - st.pad, "right"
+    elseif align === :center
+        c.w / 2, "center"
+    else
+        st.pad, "left"
+    end
+
+    setcolor!(c.cr, color)
+    Cairo.text(c.cr, x, c.y, markup; markup = true,
+               halign = halign, valign = "top")
+    c.y += max(st.line, Cairo.textheight(c.cr, markup, true))
+    return c
+end
+
+"""
+    math!(c::Canvas, tex; color, size, align)
+
+Draw real TeX math — fractions, radicals, limits stacked over big
+operators — and advance the cursor.
+
+This needs [MathTeXEngine.jl](https://github.com/Kolaru/MathTeXEngine.jl),
+which is a weak dependency: the method only exists once you load it.
+
+```julia
+using StatusWindows, MathTeXEngine   # both, in either order
+
+draw!(p) do c
+    math!(c, raw"\\frac{\\alpha}{\\beta} + \\sqrt{x^2}")
+end
+```
+
+This is a genuine TeX layout engine, and it carries its own fonts, so it
+renders identically on every machine whether or not any math font is
+installed. It is heavier than [`poormansmath!`](@ref): glyphs are
+rasterized and composited one at a time, which is fine at the once-a-second
+refresh a panel runs at.
+
+Reach for `poormansmath!` when you want plain sub/superscripts in the
+panel's own font and would rather not take the dependency.
+"""
+math!(args...; kwargs...) = error("""
+    StatusWindows: math! needs MathTeXEngine.jl.
+
+        using Pkg; Pkg.add("MathTeXEngine")
+        using MathTeXEngine
+
+    loads the extension that defines it. For sub/superscript notation
+    without the extra dependency, use poormansmath! instead.""")
+
+"""
+    mathwidth(c::Canvas, tex; size)
+
+Width in pixels that [`math!`](@ref) would need for `tex`. Like `math!`,
+this comes from the MathTeXEngine extension.
+"""
+mathwidth(args...; kwargs...) =
+    error("StatusWindows: mathwidth needs MathTeXEngine.jl — `using MathTeXEngine`.")
+
+"""
+    poormansmathwidth(c::Canvas, tex; size = c.style.size)
+
+Width in pixels that [`poormansmath!`](@ref) would need for `tex`.
+"""
+function poormansmathwidth(c::Canvas, tex::AbstractString;
+                           size::Real = c.style.size)
+    Cairo.set_font_face(c.cr, string(mathfontof(c.style), " ", size))
+    return Cairo.textwidth(c.cr, Cairo.tex2pango(String(tex), Float64(size)), true)
+end
+
+"""
     heading!(c::Canvas, str)
 
 A section title in the accent colour, underlined by a rule.

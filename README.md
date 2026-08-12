@@ -57,11 +57,106 @@ draw!(p) do c
 end
 ```
 
+## Math
+
+`math!` typesets real TeX — fractions, radicals, limits stacked over big
+operators:
+
+```julia
+using StatusWindows, MathTeXEngine   # both, in either order
+
+draw!(p) do c
+    heading!(c, "estimates")
+    math!(c, raw"\frac{\alpha}{\beta} + \sqrt{x^2}")
+    math!(c, raw"\sum_{i=1}^{n} x_i^2")
+    math!(c, raw"\hat{\beta} = (X^TX)^{-1}X^Ty")
+end
+```
+
+[MathTeXEngine.jl](https://github.com/Kolaru/MathTeXEngine.jl) is a **weak
+dependency**: it is not installed with this package, and `math!` does not
+exist until you load it — at which point a package extension supplies it.
+`mathwidth` gives the pixel width it would need, for laying things out by
+hand.
+
+It is also the *portable* path, which is not obvious for the heavier of
+two options. MathTeXEngine ships its own fonts and rasterizes through
+FreeType, so it bypasses fontconfig entirely and renders identically on a
+machine with no math fonts installed at all.
+
+### Without the dependency
+
+`poormansmath!` draws LaTeX-ish notation using nothing but Cairo: `_` and
+`^` become real subscripts and superscripts, and a few hundred commands map
+to their Unicode characters.
+
+```julia
+draw!(p) do c
+    poormansmath!(c, "\\sigma^2 = 0.37")
+    poormansmath!(c, "\\sum_{i=1}^n x_i \\leq \\infty")
+    poormansmath!(c, "p \\ll 0.01"; color = c.style.accent, align = :right)
+end
+```
+
+The name is a warning. This runs on Pango markup, not a TeX engine, which
+sets the ceiling:
+
+* **Works** — sub/superscripts with grouping, Greek, relations, arrows,
+  set and logic symbols, most binary operators.
+* **Does not** — fractions, radicals, matrices, limits stacked over a big
+  operator, or any real math spacing.
+* **Fails quietly** — a command outside the table is emitted verbatim, so
+  `\hat\beta` draws the literal text `\hat` followed by β. Nothing errors.
+  Check with `Cairo.tex2pango(s, size)` if unsure.
+* **Depends on the machine** — it asks fontconfig for a math font by name,
+  so the same code looks different on a box that has STIX and one that
+  does not.
+
+For simple readouts, raw Unicode is often less trouble than markup —
+`text!(c, "σ² = 0.37")` needs no escaping, and the Julia REPL's LaTeX
+completions (`\sigma<tab>`) type the characters for you.
+`poormansmathwidth` is the matching width function.
+
+`poormansmath!` picks its font automatically: the best installed math font
+(STIX Two Math, Latin Modern Math, ...), falling back to the panel's body
+font when none is present. `Style(mathfont = "...")` overrides that — and
+because naming a font is a request rather than a preference, naming one you
+do not have warns instead of silently substituting.
+
+## Printing and export
+
+Nothing in the drawing layer knows it is talking to a screen, so the same
+content function can be aimed at a file:
+
+```julia
+render(p, "panel.pdf")                    # a live panel's content
+render("report.svg"; width = 300) do c    # or any draw function
+    heading!(c, "report")
+    kv!(c, "n", 1024)
+end
+```
+
+`.pdf`, `.svg` and `.eps`/`.ps` give real vector output with **live,
+selectable text** — not a screenshot — and `.png` gives a bitmap. No
+window, GL context or display is involved, so this works headless and on
+CI. Vector surfaces measure in points, so a 300×220 render is about
+4.2×3.1 inches.
+
+`render` defaults to `printstyle()`: white ground, dark ink, square
+corners. The on-screen palette is designed to sit on a wallpaper and turns
+into an ink-hungry black rectangle on paper.
+
 Colours, font and spacing come from `Style`:
 
 ```julia
 Panel(style = Style(font = "Iosevka", size = 12.0, bg = (0.0, 0.0, 0.0, 0.0)))
 ```
+
+`font` defaults to empty, which means "the first installed monospaced face
+for this platform" — DejaVu Sans Mono on Linux, Menlo on macOS, Consolas on
+Windows — so one `Style` renders sensibly everywhere instead of naming a
+font that only one system ships. `fontfamilies()` lists what Pango can
+actually use here.
 
 A `bg` alpha of `0.0` gives the classic conky look, where only the text
 floats over the wallpaper.
@@ -85,6 +180,13 @@ the compositor decides placement and `SetWindowPos` is a silent no-op, so
 backend on Linux, which routes through XWayland on a Wayland session and
 makes placement work. Pass `force_x11 = false` to opt out — and expect the
 panel to land wherever the compositor likes.
+
+**HiDPI.** All geometry — `width`, `height`, `x`, `y`, `move!`, `resize!` —
+is in logical pixels, so a panel comes out roughly the same physical size on
+a 96 dpi monitor and on a 240 dpi one. `Panel` asks the window system for the
+monitor's content scale and draws at full device resolution, so text stays
+sharp rather than being magnified. Pass `scale = 1` to work in raw device
+pixels, or any other number to pin the factor yourself.
 
 **Transparency** requires a running compositor and is the one feature that
 occasionally no-ops on unusual drivers. Design the panel to look right

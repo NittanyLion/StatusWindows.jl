@@ -31,11 +31,13 @@ using ModernGL
 export Panel, Canvas, Style
 export draw!, run!, start!, stop!, refresh!, move!
 export heading!, text!, kv!, bar!, sparkline!, hrule!, spacer!, at!
-export content_width
+export math!, mathwidth, poormansmath!, poormansmathwidth, content_width
+export render, printstyle, fontfamilies
 
 include("style.jl")
 include("gl.jl")
 include("panel.jl")
 include("widgets.jl")
+include("render.jl")
 
 end # module

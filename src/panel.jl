@@ -12,7 +12,11 @@ An undecorated, always-on-top window you fill with your own drawing.
 Keyword arguments:
 
   * `width`, `height` — panel size in logical pixels.
-  * `x`, `y` — position of the top-left corner on the desktop.
+  * `x`, `y` — position of the top-left corner on the desktop, in the same
+    logical pixels.
+  * `scale` — how many device pixels go to a logical one. `:auto` asks the
+    window system, which is what makes the panel come out the same physical
+    size on a 96 dpi monitor and on a 240 dpi one; pass a number to pin it.
   * `transparent` — request a transparent framebuffer, so the panel blends
     with the wallpaper. Needs a compositor; see the README for caveats.
   * `ontop` — keep the panel above other windows.
@@ -41,6 +45,7 @@ mutable struct Panel
     h::Int
     fbw::Int            # framebuffer size (differs from logical on HiDPI)
     fbh::Int
+    scale::Float64      # device pixels per logical pixel, for size and position
     content::Union{Nothing,Function}
     running::Bool
     task::Union{Nothing,Task}
@@ -75,7 +80,20 @@ function Panel(; width::Integer = 300, height::Integer = 220,
                  decorated::Bool = false, movable::Bool = true,
                  passthrough::Bool = false, style::Style = Style(),
                  title::AbstractString = "StatusWindows",
+                 scale::Union{Symbol,Real} = :auto,
                  force_x11::Bool = true)
+
+    scale isa Symbol && scale !== :auto &&
+        throw(ArgumentError("StatusWindows: scale must be :auto or a number"))
+
+    # Cocoa insists that windows are created and polled on the main thread.
+    # `start!` uses @async, which is sticky and stays on whatever thread made
+    # the panel, so the only way to get this wrong is Threads.@spawn -- say so
+    # here rather than letting AppKit abort the process.
+    Sys.isapple() && Threads.threadid() != 1 && error("""
+        StatusWindows: on macOS a Panel must be created on thread 1, but this \
+        is thread $(Threads.threadid()). Create it on the main thread; `start!` \
+        will keep its redraw loop there.""")
 
     init_glfw!(force_x11)
     GLFW.DefaultWindowHints()
@@ -93,10 +111,22 @@ function Panel(; width::Integer = 300, height::Integer = 220,
     passthrough && GLFW.WindowHint(MOUSE_PASSTHROUGH, 1)
     # Create hidden so the panel never flashes at the wrong spot.
     GLFW.WindowHint(GLFW.VISIBLE, 0)
+    # X11 and Windows size windows in device pixels, so a 280-pixel panel is
+    # thumbnail-sized on a 240 dpi screen; this hint multiplies the requested
+    # size by the monitor's content scale. On macOS and Wayland, where window
+    # sizes are already logical, it is a no-op -- there the same factor shows
+    # up in the framebuffer size instead. Either way `winscale` below picks up
+    # whatever actually happened.
+    scale === :auto && GLFW.WindowHint(GLFW.SCALE_TO_MONITOR, 1)
 
-    window = GLFW.CreateWindow(Int(width), Int(height), String(title))
+    reqw, reqh = Int(width), Int(height)
+    pixw, pixh = scale === :auto ? (reqw, reqh) :
+                 (round(Int, reqw * scale), round(Int, reqh * scale))
+    window = GLFW.CreateWindow(pixw, pixh, String(title))
     window == C_NULL && error("StatusWindows: could not create a window")
-    GLFW.SetWindowPos(window, Int(x), Int(y))
+
+    winscale = max(_pair(GLFW.GetWindowSize(window))[1] / reqw, eps())
+    GLFW.SetWindowPos(window, round(Int, x * winscale), round(Int, y * winscale))
     GLFW.MakeContextCurrent(window)
     GLFW.SwapInterval(1)
 
@@ -110,7 +140,7 @@ function Panel(; width::Integer = 300, height::Integer = 220,
     surface = Cairo.CairoImageSurface(buf, Cairo.FORMAT_ARGB32; flipxy = false)
 
     p = Panel(window, style, buf, surface, tex, prog, vao_ref[],
-              Int(width), Int(height), 0, 0, nothing, false, nothing,
+              reqw, reqh, 0, 0, winscale, nothing, false, nothing,
               false, 0.0, 0.0)
 
     GLFW.SetKeyCallback(window, (_, key, _, action, _) -> begin
@@ -264,13 +294,15 @@ end
 "Ask the panel's loop to finish; the window closes on the next tick."
 stop!(p::Panel) = (p.running = false; p)
 
-"Move the panel's top-left corner to `(x, y)`."
+"Move the panel's top-left corner to `(x, y)`, in logical pixels."
 move!(p::Panel, x::Integer, y::Integer) =
-    (GLFW.SetWindowPos(p.window, Int(x), Int(y)); p)
+    (GLFW.SetWindowPos(p.window, round(Int, x * p.scale),
+                                 round(Int, y * p.scale)); p)
 
 function Base.resize!(p::Panel, w::Integer, h::Integer)
     p.w, p.h = Int(w), Int(h)
-    GLFW.SetWindowSize(p.window, Int(w), Int(h))
+    GLFW.SetWindowSize(p.window, round(Int, w * p.scale),
+                                 round(Int, h * p.scale))
     return p
 end
 
