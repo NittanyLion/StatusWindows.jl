@@ -219,10 +219,15 @@ the panel shows up in the window list. Hiding it needs per-platform window
 manager calls that this package does not make.
 
 **What has actually been tested.** Linux under XWayland: positioning,
-rendering, dragging and clean shutdown all verified. The GLFW hints and the
-GL 3.3 core profile used here are supported on Windows and macOS as well,
-and no code path is platform-specific apart from the X11 request above — but
-*nobody has run it on those platforms yet*. Reports welcome.
+rendering, dragging and clean shutdown all verified by hand. CI runs the
+suite on Linux (Julia 1.10 through nightly), macOS on Apple Silicon, and
+Windows, so the package loads, the Cairo drawing layer works and the body
+font resolves on all three.
+
+What CI does *not* prove is that a window appears: the tests deliberately
+draw into a bare image surface and never open one. So on macOS and Windows,
+whether the panel actually floats, accepts a drag, and honors transparency
+and click-through is still unverified. Reports welcome.
 
 ## Installation
 
