@@ -26,7 +26,14 @@ run!(p, refresh = 1.0)
 ```
 
 See `examples/demo.jl` for a working system monitor built on `Sys.cpu_info`,
-`Sys.free_memory` and friends.
+`Sys.free_memory` and friends, and `examples/showcase.jl` for one panel that
+exercises everything at once — widgets, styling, both math paths and file
+export:
+
+```julia
+julia --project=. examples/showcase.jl              # live panel
+julia --project=. examples/showcase.jl out.pdf      # render to a file
+```
 
 
 ## Filling it with your own stuff
