@@ -1,4 +1,4 @@
-# StatusWindows
+# StatusWindows.jl
 
 [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://NittanyLion.github.io/StatusWindows.jl/stable/)
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://NittanyLion.github.io/StatusWindows.jl/dev/)
