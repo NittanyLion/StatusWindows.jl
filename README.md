@@ -4,8 +4,7 @@
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://NittanyLion.github.io/StatusWindows.jl/dev/)
 [![Build Status](https://github.com/NittanyLion/StatusWindows.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/NittanyLion/StatusWindows.jl/actions/workflows/CI.yml?query=branch%3Amain)
 
-Borderless, always-on-top desktop panels you fill with your own content — a
-conky-like window, driven from Julia.
+A lightweight package to generate borderless, always-on-top desktop panels you fill with your own content (including choosing colors as in the latex svgnames package and full math) — a conky-like window, driven from Julia.
 
 ```julia
 using StatusWindows
@@ -16,7 +15,7 @@ draw!(p) do c
     heading!(c, "system")
     kv!(c, "host", gethostname())
     bar!(c, "cpu", 0.62)
-    sparkline!(c, history; lo = 0.0, hi = 1.0)
+    sparkline!(c, history; lo = 0.0, hi = 1.0, color = :Tomato)
 end
 
 run!(p, refresh = 1.0)
@@ -25,18 +24,6 @@ run!(p, refresh = 1.0)
 See `examples/demo.jl` for a working system monitor built on `Sys.cpu_info`,
 `Sys.free_memory` and friends.
 
-## How it works
-
-A panel is a [GLFW](https://www.glfw.org) window with its decorations turned
-off. On every tick the whole panel is drawn into a [Cairo](https://cairographics.org)
-image surface, which is then handed to the GPU as a single texture and
-stretched over one triangle. That keeps the whole thing to two small
-dependencies and makes the drawing API just *Cairo* — `c.cr` is a plain
-`CairoContext`, so anything Cairo can do, a panel can do.
-
-The widgets (`heading!`, `kv!`, `bar!`, `sparkline!`, `text!`, `hrule!`,
-`spacer!`) are conveniences that draw at a cursor and advance it. They are
-not privileged; mix them freely with raw Cairo calls.
 
 ## Filling it with your own stuff
 
@@ -56,6 +43,48 @@ draw!(p) do c
     Cairo.stroke(c.cr)
 end
 ```
+
+
+## Styling
+
+Colors, font and spacing come from `Style`:
+
+```julia
+Panel(style = Style(font = "Iosevka", size = 12.0, bg = (0.0, 0.0, 0.0, 0.0)))
+```
+
+`font` defaults to empty, which means "the first installed monospaced face
+for this platform" — DejaVu Sans Mono on Linux, Menlo on macOS, Consolas on
+Windows — so one `Style` renders sensibly everywhere instead of naming a
+font that only one system ships. `fontfamilies()` lists what Pango can
+actually use here.
+
+A `bg` alpha of `0.0` gives the classic conky look, where only the text
+floats over the wallpaper.
+
+
+## Colors
+
+Anywhere a color is taken, a name works as well as an `(r, g, b, a)` tuple:
+
+```julia
+text!(c, "hot";  color = :Crimson)
+bar!(c, "cpu", 0.6; color = :DeepSkyBlue)
+hrule!(c; color = :DarkSlateGray)
+Panel(style = Style(bg = :MidnightBlue, accent = :Gold))
+```
+
+The palette is the 151 SVG names from LaTeX xcolor's `svgnames` option, with
+xcolor's own values, so a panel and a paper agree on what `Crimson` is.
+Names match case-insensitively — `:DeepSkyBlue` and `:deepskyblue` are the
+same color — and `colornames()` lists everything. Note that SVG's `:Green`
+is the dark `(0, 0.5, 0)`; `:Lime` is the bright one.
+
+Five extra names follow the panel's own theme rather than fixing a color:
+`:fg`, `:dim`, `:accent`, `:warn` and `:bg`. Restyle the panel and anything
+drawn with `color = :accent` moves with it. `:transparent` draws nothing,
+and `fade(:Crimson, 0.3)` is the same color at another opacity.
+
 
 ## Math
 
@@ -123,6 +152,7 @@ font when none is present. `Style(mathfont = "...")` overrides that — and
 because naming a font is a request rather than a preference, naming one you
 do not have warns instead of silently substituting.
 
+
 ## Printing and export
 
 Nothing in the drawing layer knows it is talking to a screen, so the same
@@ -146,7 +176,17 @@ CI. Vector surfaces measure in points, so a 300×220 render is about
 corners. The on-screen palette is designed to sit on a wallpaper and turns
 into an ink-hungry black rectangle on paper.
 
-### Machines with no display
+
+## Controls
+
+Drag the panel with the left mouse button (`movable = true`, the default);
+Escape closes it. Pass `passthrough = true` to let clicks fall through to
+whatever is underneath — that also disables dragging.
+
+`start!` runs the panel on a task so the REPL stays usable; `stop!` ends it.
+
+
+## Machines with no display
 
 A script written for a desktop should not fall over when it lands on a
 server. Where there is no display, `Panel` warns once and returns an inert
@@ -167,28 +207,6 @@ because GLFW.jl calls `glfwInit()` from its own `__init__` and throws when
 that fails — before any code here runs. On a headless Linux box, start an
 Xvfb (see `.github/workflows/CI.yml`) or the import fails.
 
-Colors, font and spacing come from `Style`:
-
-```julia
-Panel(style = Style(font = "Iosevka", size = 12.0, bg = (0.0, 0.0, 0.0, 0.0)))
-```
-
-`font` defaults to empty, which means "the first installed monospaced face
-for this platform" — DejaVu Sans Mono on Linux, Menlo on macOS, Consolas on
-Windows — so one `Style` renders sensibly everywhere instead of naming a
-font that only one system ships. `fontfamilies()` lists what Pango can
-actually use here.
-
-A `bg` alpha of `0.0` gives the classic conky look, where only the text
-floats over the wallpaper.
-
-## Controls
-
-Drag the panel with the left mouse button (`movable = true`, the default);
-Escape closes it. Pass `passthrough = true` to let clicks fall through to
-whatever is underneath — that also disables dragging.
-
-`start!` runs the panel on a task so the REPL stays usable; `stop!` ends it.
 
 ## Platform notes
 
@@ -228,6 +246,21 @@ What CI does *not* prove is that a window appears: the tests deliberately
 draw into a bare image surface and never open one. So on macOS and Windows,
 whether the panel actually floats, accepts a drag, and honors transparency
 and click-through is still unverified. Reports welcome.
+
+
+## How it works
+
+A panel is a [GLFW](https://www.glfw.org) window with its decorations turned
+off. On every tick the whole panel is drawn into a [Cairo](https://cairographics.org)
+image surface, which is then handed to the GPU as a single texture and
+stretched over one triangle. That keeps the whole thing to two small
+dependencies and makes the drawing API just *Cairo* — `c.cr` is a plain
+`CairoContext`, so anything Cairo can do, a panel can do.
+
+The widgets (`heading!`, `kv!`, `bar!`, `sparkline!`, `text!`, `hrule!`,
+`spacer!`) are conveniences that draw at a cursor and advance it. They are
+not privileged; mix them freely with raw Cairo calls.
+
 
 ## Installation
 
