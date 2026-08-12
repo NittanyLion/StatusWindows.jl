@@ -29,7 +29,7 @@ using Cairo
 using ModernGL
 
 export Panel, Canvas, Style
-export draw!, run!, start!, stop!, refresh!, move!
+export draw!, run!, start!, stop!, refresh!, move!, hasdisplay, isactive
 export heading!, text!, kv!, bar!, sparkline!, hrule!, spacer!, at!
 export math!, mathwidth, poormansmath!, poormansmathwidth, content_width
 export render, printstyle, fontfamilies

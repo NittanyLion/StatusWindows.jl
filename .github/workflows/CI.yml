@@ -31,6 +31,16 @@ jobs:
           - ubuntu-latest
         arch:
           - x64
+        include:
+          # The version sweep stays on Linux to keep the matrix small; these
+          # two exist to prove the package builds and runs off Linux at all,
+          # which nothing checked before.
+          - version: '1.12'
+            os: macos-latest      # Apple Silicon
+            arch: aarch64
+          - version: '1.12'
+            os: windows-latest
+            arch: x64
     steps:
       - uses: actions/checkout@v7
       - uses: julia-actions/setup-julia@v3
@@ -40,8 +50,10 @@ jobs:
       - uses: julia-actions/cache@v3
       # GLFW.jl calls glfwInit() from its own __init__, so `using
       # StatusWindows` throws on a runner with no X server, whatever the
-      # tests themselves touch.
+      # tests themselves touch. macOS and Windows have a display server of
+      # their own, so this is Linux-only.
       - name: Start a virtual X display
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends xvfb x11-utils

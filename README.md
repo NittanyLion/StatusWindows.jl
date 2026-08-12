@@ -146,6 +146,27 @@ CI. Vector surfaces measure in points, so a 300×220 render is about
 corners. The on-screen palette is designed to sit on a wallpaper and turns
 into an ink-hungry black rectangle on paper.
 
+### Machines with no display
+
+A script written for a desktop should not fall over when it lands on a
+server. Where there is no display, `Panel` warns once and returns an inert
+panel: `draw!`, `run!`, `start!`, `move!` and the rest all accept it and do
+nothing, so the script runs to the end and whatever else it does still
+happens. `hasdisplay()` is the test, `isactive(p)` reports what you got.
+
+```julia
+p = Panel()             # warns on a headless box, throws nowhere
+draw!(p) do c
+    kv!(c, "load", string(Sys.loadavg()[1]))
+end
+run!(p)                 # returns immediately if there is no display
+```
+
+One caveat this cannot cover: `using StatusWindows` itself needs a display,
+because GLFW.jl calls `glfwInit()` from its own `__init__` and throws when
+that fails — before any code here runs. On a headless Linux box, start an
+Xvfb (see `.github/workflows/CI.yml`) or the import fails.
+
 Colors, font and spacing come from `Style`:
 
 ```julia

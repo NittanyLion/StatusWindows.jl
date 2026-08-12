@@ -160,6 +160,45 @@ painted(buf) = count(!=(0), buf)
             Style(font = "Nonexistent Body Font XYZ"))
     end
 
+    @testset "headless panels are inert" begin
+        # hasdisplay only inspects the environment on Linux; elsewhere it
+        # defers to window creation and always answers true.
+        if Sys.islinux()
+            @test withenv(hasdisplay, "DISPLAY" => nothing,
+                          "WAYLAND_DISPLAY" => nothing) == false
+            @test withenv(hasdisplay, "DISPLAY" => ":0") == true
+            @test withenv(hasdisplay, "DISPLAY" => nothing,
+                          "WAYLAND_DISPLAY" => "wayland-0") == true
+        else
+            @test hasdisplay()
+        end
+
+        # Every method has to survive a panel with no window behind it,
+        # because that is the whole point: a desktop script runs to the end
+        # on a server instead of stopping at the first call.
+        p = StatusWindows.inertpanel(Style(), 300, 220)
+        @test !isactive(p)
+        @test occursin("inert", sprint(show, p))
+        @test draw!(c -> text!(c, "never drawn"), p) === p
+        @test refresh!(p) === p
+        @test run!(p) === nothing
+        @test start!(p) === p
+        @test p.task === nothing         # no redraw task was ever spawned
+        @test stop!(p) === p
+        @test move!(p, 10, 10) === p
+        @test resize!(p, 100, 100) === p
+        @test (p.w, p.h) == (100, 100)   # bookkeeping still updates
+        @test close(p) === nothing
+
+        # Constructing one through the public API warns rather than throwing.
+        if Sys.islinux()
+            withenv("DISPLAY" => nothing, "WAYLAND_DISPLAY" => nothing) do
+                q = @test_logs (:warn, r"no display") Panel()
+                @test !isactive(q)
+            end
+        end
+    end
+
     @testset "render to file" begin
         content = c -> (heading!(c, "report"); kv!(c, "n", 1024); bar!(c, "cpu", 0.4))
 

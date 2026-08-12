@@ -32,6 +32,13 @@ Keyword arguments:
     mean anything under a Wayland session. Ignored if `DISPLAY` is unset.
 
 Give it content with [`draw!`](@ref), then start it with [`run!`](@ref).
+
+On a machine with no display — a server, a CI runner — there is nothing to
+put a window on, so `Panel` warns once and hands back an inert panel instead
+of failing. Every method on one does nothing, which lets a script written
+for a desktop run unchanged where there is no desktop. [`hasdisplay`](@ref)
+is the test it uses and [`isactive`](@ref) reports what you got. To produce
+output on such a machine, use [`render`](@ref), which never needs a window.
 """
 mutable struct Panel
     window::GLFW.Window
@@ -59,6 +66,33 @@ end
 _pair(v) = hasproperty(v, :width)  ? (Int(v.width), Int(v.height)) :
            hasproperty(v, :x)      ? (Int(v.x), Int(v.y)) :
                                      (Int(v[1]), Int(v[2]))
+
+"""
+    hasdisplay() -> Bool
+
+Whether this process could actually put a window on a screen.
+
+On Linux that means an X or Wayland session is reachable. macOS and Windows
+have a window server whenever a user session does, and offer nothing as
+cheap to test, so they answer `true` and let window creation be the judge.
+"""
+hasdisplay() = !Sys.islinux() ||
+               haskey(ENV, "DISPLAY") || haskey(ENV, "WAYLAND_DISPLAY")
+
+# GLFW.Window wraps a Ptr but defines no == against one, so comparing the
+# window itself to C_NULL is always true. Reach for the handle.
+"Whether `p` owns a real window, as opposed to being an inert stand-in."
+isactive(p::Panel) = p.window.handle != C_NULL
+
+# A panel with no window behind it. Every operation on one is a no-op, so a
+# script written for a desktop still runs start to finish on a server.
+function inertpanel(style::Style, w::Integer, h::Integer)
+    buf = zeros(UInt32, 1, 1)
+    surface = Cairo.CairoImageSurface(buf, Cairo.FORMAT_ARGB32; flipxy = false)
+    return Panel(GLFW.Window(C_NULL), style, buf, surface, 0, 0, 0,
+                 Int(w), Int(h), 1, 1, 1.0, nothing, false, nothing,
+                 false, 0.0, 0.0)
+end
 
 function init_glfw!(force_x11::Bool)
     if force_x11 && Sys.islinux() && haskey(ENV, "DISPLAY")
@@ -95,6 +129,13 @@ function Panel(; width::Integer = 300, height::Integer = 220,
         is thread $(Threads.threadid()). Create it on the main thread; `start!` \
         will keep its redraw loop there.""")
 
+    if !hasdisplay()
+        @warn """StatusWindows: no display, so this panel will do nothing. \
+                 Use render(...) to write a .pdf, .svg or .png instead, which \
+                 needs no window.""" maxlog=1
+        return inertpanel(style, width, height)
+    end
+
     init_glfw!(force_x11)
     GLFW.DefaultWindowHints()
     # Core 3.3 with forward compatibility is the profile macOS will give us,
@@ -123,7 +164,13 @@ function Panel(; width::Integer = 300, height::Integer = 220,
     pixw, pixh = scale === :auto ? (reqw, reqh) :
                  (round(Int, reqw * scale), round(Int, reqh * scale))
     window = GLFW.CreateWindow(pixw, pixh, String(title))
-    window == C_NULL && error("StatusWindows: could not create a window")
+    if window.handle == C_NULL
+        # A display the window system admits to having but cannot draw on --
+        # a locked-down session, a remote runner. Degrade the same way.
+        @warn "StatusWindows: could not create a window; this panel will do \
+               nothing." maxlog=1
+        return inertpanel(style, width, height)
+    end
 
     winscale = max(_pair(GLFW.GetWindowSize(window))[1] / reqw, eps())
     GLFW.SetWindowPos(window, round(Int, x * winscale), round(Int, y * winscale))
@@ -233,6 +280,7 @@ Redraw the panel once, immediately. [`run!`](@ref) calls this on a timer;
 call it yourself if you drive the loop.
 """
 function refresh!(p::Panel)
+    isactive(p) || return p
     GLFW.MakeContextCurrent(p.window)
     ensure_surface!(p)
 
@@ -262,6 +310,7 @@ Block, redrawing every `refresh` seconds until the panel is closed or
 [`stop!`](@ref) is called. Escape closes the panel.
 """
 function run!(p::Panel; refresh::Real = 1.0)
+    isactive(p) || return nothing
     p.running = true
     last = -Inf
     try
@@ -287,6 +336,7 @@ Like [`run!`](@ref) but on a task, so the REPL stays usable. Stop it with
 [`stop!`](@ref).
 """
 function start!(p::Panel; refresh::Real = 1.0)
+    isactive(p) || return p
     p.task = @async run!(p; refresh = refresh)
     return p
 end
@@ -295,12 +345,16 @@ end
 stop!(p::Panel) = (p.running = false; p)
 
 "Move the panel's top-left corner to `(x, y)`, in logical pixels."
-move!(p::Panel, x::Integer, y::Integer) =
-    (GLFW.SetWindowPos(p.window, round(Int, x * p.scale),
-                                 round(Int, y * p.scale)); p)
+function move!(p::Panel, x::Integer, y::Integer)
+    isactive(p) || return p
+    GLFW.SetWindowPos(p.window, round(Int, x * p.scale),
+                                round(Int, y * p.scale))
+    return p
+end
 
 function Base.resize!(p::Panel, w::Integer, h::Integer)
     p.w, p.h = Int(w), Int(h)
+    isactive(p) || return p
     GLFW.SetWindowSize(p.window, round(Int, w * p.scale),
                                  round(Int, h * p.scale))
     return p
@@ -308,7 +362,7 @@ end
 
 function Base.close(p::Panel)
     p.running = false
-    if p.window != C_NULL && GLFW.WindowShouldClose(p.window) !== nothing
+    if isactive(p) && GLFW.WindowShouldClose(p.window) !== nothing
         try
             GLFW.MakeContextCurrent(p.window)
             glDeleteTextures(1, Ref(p.tex))
@@ -323,4 +377,5 @@ function Base.close(p::Panel)
 end
 
 Base.show(io::IO, p::Panel) =
-    print(io, "Panel(", p.w, "×", p.h, p.running ? ", running" : "", ")")
+    print(io, "Panel(", p.w, "×", p.h,
+          isactive(p) ? (p.running ? ", running" : "") : ", inert", ")")
