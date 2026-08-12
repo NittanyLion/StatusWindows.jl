@@ -3,6 +3,7 @@
 [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://NittanyLion.github.io/StatusWindows.jl/stable/)
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://NittanyLion.github.io/StatusWindows.jl/dev/)
 [![Build Status](https://github.com/NittanyLion/StatusWindows.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/NittanyLion/StatusWindows.jl/actions/workflows/CI.yml?query=branch%3Amain)
+![authored by: JP](authored_by.svg)
 
 A lightweight package to generate borderless, always-on-top desktop panels you fill with your own content (including choosing colors as in the latex svgnames package and full math) — a conky-like window, driven from Julia.
 
@@ -268,3 +269,8 @@ not privileged; mix them freely with raw Cairo calls.
 using Pkg
 Pkg.add("StatusWindows")
 ```
+
+## Disclaimer
+
+This package was written with significant assistance from Claude.
+
