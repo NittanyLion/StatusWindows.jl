@@ -25,7 +25,7 @@ Keyword arguments:
   * `movable` — drag the panel with the left mouse button.
   * `passthrough` — let clicks fall through to whatever is underneath.
     Implies the panel cannot be dragged.
-  * `style` — a [`Style`](@ref) controlling colours, font and spacing.
+  * `style` — a [`Style`](@ref) controlling colors, font and spacing.
   * `force_x11` — on Linux, force GLFW's X11 backend. GLFW's Wayland
     backend cannot position its own windows (the compositor decides, and
     `SetWindowPos` is a silent no-op), so this is what makes `x` and `y`

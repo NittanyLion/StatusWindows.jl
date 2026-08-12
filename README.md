@@ -146,7 +146,7 @@ CI. Vector surfaces measure in points, so a 300×220 render is about
 corners. The on-screen palette is designed to sit on a wallpaper and turns
 into an ink-hungry black rectangle on paper.
 
-Colours, font and spacing come from `Style`:
+Colors, font and spacing come from `Style`:
 
 ```julia
 Panel(style = Style(font = "Iosevka", size = 12.0, bg = (0.0, 0.0, 0.0, 0.0)))
@@ -207,5 +207,8 @@ and no code path is platform-specific apart from the X11 request above — but
 
 ```julia
 using Pkg
-Pkg.develop(path = "path/to/StatusWindows.jl")
+Pkg.add(url = "https://github.com/NittanyLion/StatusWindows.jl")
 ```
+
+Once the package is in the General registry this becomes
+`Pkg.add("StatusWindows")`.

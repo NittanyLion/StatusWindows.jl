@@ -57,7 +57,7 @@ function layout(tex::AbstractString, fontsize::Real)
             w, h = size(cov)
             xmin = min(xmin, gx);     ymin = min(ymin, gy)
             xmax = max(xmax, gx + w); ymax = max(ymax, gy + h)
-        else # HLine, centred on its position
+        else # HLine, centered on its position
             w = elem.width * fontsize
             h = max(elem.thickness * fontsize, 1.0)
             ry = y - h / 2
@@ -74,7 +74,7 @@ end
 """
 Composite one glyph's coverage onto `cr` in `color`.
 
-Cairo wants premultiplied ARGB32, so the colour is scaled by coverage on
+Cairo wants premultiplied ARGB32, so the color is scaled by coverage on
 the way in rather than leaned on the blender to sort out.
 """
 function stamp!(cr::CairoContext, g::Glyph, ox::Int, oy::Int, color::RGBA)

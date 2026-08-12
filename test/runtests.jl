@@ -136,7 +136,7 @@ painted(buf) = count(!=(0), buf)
         @test chosen in StatusWindows.MATH_FONTS ||
               chosen == StatusWindows.fontof(st)
 
-        # An explicitly named font is honoured verbatim...
+        # An explicitly named font is honored verbatim...
         @test StatusWindows.mathfontof(Style(mathfont = "DejaVu Sans")) == "DejaVu Sans"
         # ...but a missing one warns rather than silently substituting.
         @test_logs (:warn, r"not installed") StatusWindows.mathfontof(

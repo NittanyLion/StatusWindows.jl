@@ -175,7 +175,7 @@ end
 """
     heading!(c::Canvas, str)
 
-A section title in the accent colour, underlined by a rule.
+A section title in the accent color, underlined by a rule.
 """
 function heading!(c::Canvas, str::AbstractString)
     text!(c, uppercase(String(str)); color = c.style.accent, bold = true)
@@ -229,7 +229,7 @@ end
 """
     bar!(c::Canvas, label, frac; color, height, showpct)
 
-A labelled progress bar. `frac` is clamped to `0..1`.
+A labeled progress bar. `frac` is clamped to `0..1`.
 """
 function bar!(c::Canvas, label::AbstractString, frac::Real;
               color::RGBA = c.style.accent, height::Real = 6.0,

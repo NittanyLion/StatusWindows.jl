@@ -1,4 +1,4 @@
-# Colours, fonts and the drawing cursor.
+# Colors, fonts and the drawing cursor.
 
 const RGBA = NTuple{4,Float64}
 
@@ -57,7 +57,7 @@ const BODY_FONTS = Sys.isapple()   ? ["Menlo", "Monaco", "Courier New"] :
 """
     Style(; kwargs...)
 
-Appearance of a [`Panel`](@ref): colours, font and spacing. Colours are
+Appearance of a [`Panel`](@ref): colors, font and spacing. Colors are
 `(r, g, b, a)` tuples with components in `0..1`.
 
 The defaults are a dark translucent panel with light text. `bg`'s alpha is
