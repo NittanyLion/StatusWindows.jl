@@ -37,7 +37,7 @@ jobs:
         with:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
-      - uses: julia-actions/cache@v2
+      - uses: julia-actions/cache@v3
       # GLFW.jl calls glfwInit() from its own __init__, so `using
       # StatusWindows` throws on a runner with no X server, whatever the
       # tests themselves touch.
@@ -65,7 +65,7 @@ jobs:
       - uses: julia-actions/setup-julia@v3
         with:
           version: '1'
-      - uses: julia-actions/cache@v2
+      - uses: julia-actions/cache@v3
       - name: Start a virtual X display
         run: |
           sudo apt-get update -qq
