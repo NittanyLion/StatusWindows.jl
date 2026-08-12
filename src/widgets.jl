@@ -46,7 +46,7 @@ Draw one line of text and advance the cursor. `align` is `:left`,
 `:right` or `:center`.
 """
 function text!(c::Canvas, str::AbstractString;
-               color::RGBA = c.style.fg, size::Real = c.style.size,
+               color::ColorLike = c.style.fg, size::Real = c.style.size,
                bold::Bool = false, align::Symbol = :left)
     st = c.style
     setfont!(c; size = size, bold = bold)
@@ -59,7 +59,7 @@ function text!(c::Canvas, str::AbstractString;
         st.pad
     end
     Cairo.move_to(c.cr, x, c.y + ascent(c))
-    setcolor!(c.cr, color)
+    setcolor!(c.cr, rgba(st, color))
     Cairo.show_text(c.cr, s)
     c.y += max(st.line, size * 1.4)
     return c
@@ -94,7 +94,7 @@ Text is not escaped, so a literal `<`, `>` or `&` in `tex` will confuse
 Pango — write `\\lt`, `\\gt` and `\\&` instead.
 """
 function poormansmath!(c::Canvas, tex::AbstractString;
-                       color::RGBA = c.style.fg, size::Real = c.style.size,
+                       color::ColorLike = c.style.fg, size::Real = c.style.size,
                        align::Symbol = :left)
     st = c.style
     # Pango takes its font from a description string, not from the toy
@@ -110,7 +110,7 @@ function poormansmath!(c::Canvas, tex::AbstractString;
         st.pad, "left"
     end
 
-    setcolor!(c.cr, color)
+    setcolor!(c.cr, rgba(st, color))
     Cairo.text(c.cr, x, c.y, markup; markup = true,
                halign = halign, valign = "top")
     c.y += max(st.line, Cairo.textheight(c.cr, markup, true))
@@ -178,7 +178,7 @@ end
 A section title in the accent color, underlined by a rule.
 """
 function heading!(c::Canvas, str::AbstractString)
-    text!(c, uppercase(String(str)); color = c.style.accent, bold = true)
+    text!(c, uppercase(String(str)); color = :accent, bold = true)
     hrule!(c)
     return c
 end
@@ -188,13 +188,14 @@ end
 
 A hairline across the panel's content width.
 """
-function hrule!(c::Canvas; color::RGBA = c.style.dim)
+function hrule!(c::Canvas; color::ColorLike = c.style.dim)
     st = c.style
     y = round(c.y - st.line / 3) + 0.5     # half-pixel keeps the line crisp
     Cairo.new_path(c.cr)
     Cairo.move_to(c.cr, st.pad, y)
     Cairo.line_to(c.cr, c.w - st.pad, y)
-    setcolor!(c.cr, (color[1], color[2], color[3], color[4] * 0.45))
+    col = rgba(st, color)
+    setcolor!(c.cr, fade(col, col[4] * 0.45))
     Cairo.set_line_width(c.cr, 1.0)
     Cairo.stroke(c.cr)
     c.y += 4
@@ -208,18 +209,19 @@ A label on the left and a value flushed right — the workhorse row for a
 status panel.
 """
 function kv!(c::Canvas, key::AbstractString, value;
-             keycolor::RGBA = c.style.dim, valuecolor::RGBA = c.style.fg)
+             keycolor::ColorLike = c.style.dim,
+             valuecolor::ColorLike = c.style.fg)
     st = c.style
     setfont!(c)
     base = c.y + ascent(c)
     v = string(value)
 
     Cairo.move_to(c.cr, st.pad, base)
-    setcolor!(c.cr, keycolor)
+    setcolor!(c.cr, rgba(st, keycolor))
     Cairo.show_text(c.cr, String(key))
 
     Cairo.move_to(c.cr, c.w - st.pad - advance(c, v), base)
-    setcolor!(c.cr, valuecolor)
+    setcolor!(c.cr, rgba(st, valuecolor))
     Cairo.show_text(c.cr, v)
 
     c.y += st.line
@@ -232,7 +234,7 @@ end
 A labeled progress bar. `frac` is clamped to `0..1`.
 """
 function bar!(c::Canvas, label::AbstractString, frac::Real;
-              color::RGBA = c.style.accent, height::Real = 6.0,
+              color::ColorLike = c.style.accent, height::Real = 6.0,
               showpct::Bool = true)
     st = c.style
     f = clamp(Float64(frac), 0.0, 1.0)
@@ -241,12 +243,12 @@ function bar!(c::Canvas, label::AbstractString, frac::Real;
 
     w = content_width(c)
     Cairo.rectangle(c.cr, st.pad, c.y, w, Float64(height))
-    setcolor!(c.cr, (st.dim[1], st.dim[2], st.dim[3], 0.22))
+    setcolor!(c.cr, fade(st.dim, 0.22))
     Cairo.fill(c.cr)
 
     if f > 0
         Cairo.rectangle(c.cr, st.pad, c.y, w * f, Float64(height))
-        setcolor!(c.cr, color)
+        setcolor!(c.cr, rgba(st, color))
         Cairo.fill(c.cr)
     end
 
@@ -261,7 +263,7 @@ A filled line chart of `values` across the panel's content width. `lo` and
 `hi` fix the vertical scale; by default it tracks the data.
 """
 function sparkline!(c::Canvas, values;
-                    height::Real = 34.0, color::RGBA = c.style.accent,
+                    height::Real = 34.0, color::ColorLike = c.style.accent,
                     lo::Union{Nothing,Real} = nothing,
                     hi::Union{Nothing,Real} = nothing)
     v = Float64[float(x) for x in values]
@@ -287,7 +289,7 @@ function sparkline!(c::Canvas, values;
     end
     Cairo.line_to(c.cr, px(n), y1)
     Cairo.close_path(c.cr)
-    setcolor!(c.cr, (color[1], color[2], color[3], 0.18))
+    setcolor!(c.cr, fade(st, color, 0.18))
     Cairo.fill(c.cr)
 
     Cairo.new_path(c.cr)
@@ -295,7 +297,7 @@ function sparkline!(c::Canvas, values;
         i == 1 ? Cairo.move_to(c.cr, px(i), py(v[i])) :
                  Cairo.line_to(c.cr, px(i), py(v[i]))
     end
-    setcolor!(c.cr, color)
+    setcolor!(c.cr, rgba(st, color))
     Cairo.set_line_width(c.cr, 1.5)
     Cairo.stroke(c.cr)
 

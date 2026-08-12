@@ -13,7 +13,7 @@ anything being installed on the user's machine.
 module StatusWindowsMathTeXExt
 
 using StatusWindows
-using StatusWindows: Canvas, RGBA
+using StatusWindows: Canvas, RGBA, ColorLike, rgba
 using Cairo
 using MathTeXEngine
 using MathTeXEngine: TeXChar, HLine
@@ -95,10 +95,11 @@ function stamp!(cr::CairoContext, g::Glyph, ox::Int, oy::Int, color::RGBA)
 end
 
 function StatusWindows.math!(c::Canvas, tex::AbstractString;
-                             color::RGBA = c.style.fg,
+                             color::ColorLike = c.style.fg,
                              size::Real = c.style.size * 1.35,
                              align::Symbol = :left)
     st = c.style
+    col = rgba(st, color)
     glyphs, rules, (xmin, ymin, xmax, ymax) = layout(tex, size)
     isempty(glyphs) && isempty(rules) && return c
 
@@ -117,9 +118,9 @@ function StatusWindows.math!(c::Canvas, tex::AbstractString;
 
     Cairo.save(c.cr)
     for g in glyphs
-        stamp!(c.cr, g, ox, oy, color)
+        stamp!(c.cr, g, ox, oy, col)
     end
-    Cairo.set_source_rgba(c.cr, color...)
+    Cairo.set_source_rgba(c.cr, col...)
     for (rx, ry, rw, rh) in rules
         Cairo.rectangle(c.cr, ox + rx, oy + ry, rw, rh)
         Cairo.fill(c.cr)

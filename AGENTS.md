@@ -45,6 +45,18 @@ Deliberately named against intuition:
 Do not "simplify" by merging them; the point is that one is free and one is
 correct.
 
+## Colors
+
+`src/colors.jl` is **generated, not written**. It is the 151 SVG names from
+LaTeX xcolor's `svgnames` option, parsed out of `svgnam.def` in a TeX Live
+tree so a panel and a paper agree on what Crimson is. Do not hand-edit
+entries; regenerate from that file if xcolor ever changes.
+
+Anything user-facing that takes a color should accept `ColorLike` and pass
+it through `rgba(style, color)` rather than demanding a tuple. The style
+names — `:fg`, `:dim`, `:accent`, `:warn`, `:bg` — only resolve when a
+`Style` is in hand, which is why `Style(fg = :accent)` throws.
+
 ## Fonts
 
 Never hardcode a family name. Body text goes through `fontof(style)` and

@@ -84,6 +84,78 @@ painted(buf) = count(!=(0), buf)
         @test poormansmath!(c, "\\mu \\pm 2\\sigma"; align = :center) === c
     end
 
+    @testset "colors" begin
+        # The table is xcolor's svgnames verbatim, so spot-check against
+        # values taken from svgnam.def rather than from this package.
+        @test length(StatusWindows.SVG_COLORS) == 151
+        @test rgba(:Crimson) == (0.864, 0.08, 0.235, 1.0)
+        @test rgba(:AliceBlue) == (0.94, 0.972, 1.0, 1.0)
+        @test rgba(:YellowGreen) == (0.604, 0.804, 0.196, 1.0)
+        # SVG's Green is the dark one; Lime is the bright one.
+        @test rgba(:Green) == (0.0, 0.5, 0.0, 1.0)
+        @test rgba(:Lime) == (0.0, 1.0, 0.0, 1.0)
+
+        # Case folds, so xcolor's spelling and a lowercase one agree.
+        @test rgba(:DarkSlateGray) == rgba(:darkslategray) == rgba(:dArKsLaTeGrAy)
+        @test rgba(:Grey) == rgba(:Gray)          # both spellings are svgnames
+
+        # Tuples pass through; a bare triple gains an opaque alpha.
+        @test rgba((0.1, 0.2, 0.3, 0.4)) == (0.1, 0.2, 0.3, 0.4)
+        @test rgba((0.1, 0.2, 0.3)) == (0.1, 0.2, 0.3, 1.0)
+        @test rgba(:transparent) == rgba(:none) == (0.0, 0.0, 0.0, 0.0)
+        @test fade(:Crimson, 0.25) == (0.864, 0.08, 0.235, 0.25)
+
+        # Style names resolve against the style in hand, not a fixed color.
+        st = Style(accent = :Tomato, warn = :Gold)
+        @test rgba(st, :accent) == rgba(:Tomato)
+        @test rgba(st, :warn) == rgba(:Gold)
+        @test rgba(st, :fg) == st.fg
+        @test rgba(st, :Crimson) == rgba(:Crimson)   # falls through to SVG
+        @test fade(st, :accent, 0.5) == (rgba(:Tomato)[1:3]..., 0.5)
+
+        # ...but not while the style is still being built, where they cannot.
+        @test_throws ArgumentError Style(fg = :accent)
+        @test_throws ArgumentError rgba(:NotAColorAtAll)
+
+        @test length(colornames()) == 151 + length(StatusWindows.STYLE_COLORS) + 2
+        @test :DeepSkyBlue in colornames()
+        @test allunique(colornames())
+    end
+
+    @testset "widgets accept color names" begin
+        # Every color keyword has to take a name, not just a tuple, and the
+        # name has to actually change what lands on the surface.
+        for (name, f) in [
+            "text"      => (c, col) -> text!(c, "hello"; color = col),
+            "kv key"    => (c, col) -> kv!(c, "k", "v"; keycolor = col),
+            "kv value"  => (c, col) -> kv!(c, "k", "v"; valuecolor = col),
+            "bar"       => (c, col) -> bar!(c, "cpu", 0.6; color = col),
+            "sparkline" => (c, col) -> sparkline!(c, [1, 5, 2, 6]; color = col),
+            "hrule"     => (c, col) -> hrule!(c; color = col),
+            "math"      => (c, col) -> poormansmath!(c, "x^2"; color = col),
+        ]
+            @testset "$name" begin
+                red, _, cr = testcanvas()
+                blue, _, cb = testcanvas()
+                f(cr, :Red)
+                f(cb, :Blue)
+                @test painted(red) > 0
+                @test red != blue          # the name reached the pixels
+                # A name and its tuple must be indistinguishable.
+                tup, _, ct = testcanvas()
+                f(ct, rgba(:Red))
+                @test tup == red
+            end
+        end
+
+        # :accent follows the style rather than pinning a color.
+        a, _, ca = testcanvas(; style = Style(accent = :Tomato))
+        b, _, cb = testcanvas(; style = Style(accent = :Tomato))
+        text!(ca, "x"; color = :accent)
+        text!(cb, "x"; color = :Tomato)
+        @test a == b
+    end
+
     @testset "font metrics" begin
         _, _, c = testcanvas()
         StatusWindows.setfont!(c)

@@ -79,6 +79,14 @@ Base.@kwdef struct Style
     pad::Float64        = 14.0                      # inner margin
     line::Float64       = 19.0                      # baseline-to-baseline
     radius::Float64     = 10.0                      # background corner radius
+
+    # Colors may arrive as SVG names; normalize on the way in so that every
+    # consumer downstream sees a plain tuple. The palette names (:accent and
+    # friends) cannot resolve here -- they mean "look it up in the style",
+    # and this is the style being built.
+    Style(font, mathfont, size, fg, dim, accent, warn, bg, pad, line, radius) =
+        new(font, mathfont, size, rgba(fg), rgba(dim), rgba(accent),
+            rgba(warn), rgba(bg), pad, line, radius)
 end
 
 """
@@ -158,8 +166,82 @@ function mathfontof(st::Style)
     return fontof(st)   # no math font at all: the body font still has Greek
 end
 
-"Apply an `RGBA` tuple to the context."
-setcolor!(cr::CairoContext, col::RGBA) = set_source_rgba(cr, col...)
+# --- colors --------------------------------------------------------------
+
+"""
+Colors that are not SVG names: the panel's own palette, plus `:transparent`.
+
+The palette entries resolve against the [`Style`](@ref) in hand, so
+`color = :accent` follows the theme rather than pinning a particular orange.
+They are only meaningful where a style exists, which is every widget.
+"""
+const STYLE_COLORS = (:fg, :dim, :accent, :warn, :bg)
+
+"""
+    colornames() -> Vector{Symbol}
+
+Every color name [`rgba`](@ref) accepts, alphabetically: the 151 SVG names
+from LaTeX's xcolor, then this package's own.
+
+Names are shown in xcolor's capitalization but matched case-insensitively,
+so `:DeepSkyBlue` and `:deepskyblue` are the same color.
+"""
+colornames() = vcat(SVG_NAMES, collect(STYLE_COLORS), [:transparent, :none])
+
+"""
+    rgba(color) -> RGBA
+    rgba(style, color) -> RGBA
+
+Normalize anything color-shaped to an `(r, g, b, a)` tuple.
+
+Accepted forms:
+
+  * `(r, g, b, a)` or `(r, g, b)` with components in `0..1`, alpha
+    defaulting to opaque.
+  * Any SVG color name as a symbol — `:Crimson`, `:crimson`, `:DarkSlateGray`
+    — with the values LaTeX's xcolor uses under `svgnames`, so a panel and a
+    paper agree. [`colornames`](@ref) lists them.
+  * `:transparent` (or `:none`), which is invisible rather than black.
+  * With a style in hand: `:fg`, `:dim`, `:accent`, `:warn` and `:bg` pick
+    that field, so a widget can follow the theme instead of naming a color.
+
+Note that SVG's `:Green` is the dark half-intensity one, `(0, 0.5, 0)`;
+`:Lime` is the bright `(0, 1, 0)` most people picture.
+"""
+rgba(c::RGBA) = c
+rgba(c::NTuple{4,Real}) = (Float64(c[1]), Float64(c[2]), Float64(c[3]), Float64(c[4]))
+rgba(c::NTuple{3,Real}) = (Float64(c[1]), Float64(c[2]), Float64(c[3]), 1.0)
+
+function rgba(s::Symbol)
+    (s === :transparent || s === :none) && return (0.0, 0.0, 0.0, 0.0)
+    col = get(SVG_COLORS, s, nothing)
+    col === nothing || return col
+    # Fold case only on a miss, so the common exact-lowercase hit allocates
+    # nothing.
+    col = get(SVG_COLORS, Symbol(lowercase(String(s))), nothing)
+    col === nothing || return col
+    throw(ArgumentError("""StatusWindows: unknown color :$s. \
+                           colornames() lists what is available; \
+                           `Style` fields like :accent work inside widgets."""))
+end
+
+rgba(st::Style, s::Symbol) =
+    s === :fg     ? st.fg     :
+    s === :dim    ? st.dim    :
+    s === :accent ? st.accent :
+    s === :warn   ? st.warn   :
+    s === :bg     ? st.bg     : rgba(s)
+rgba(::Style, c) = rgba(c)
+
+"Anything a `color` keyword accepts. Resolve it with [`rgba`](@ref)."
+const ColorLike = Union{NTuple{3,Real},NTuple{4,Real},Symbol}
+
+"Same color at a different opacity: `fade(:Crimson, 0.3)`."
+fade(c, alpha::Real) = (r = rgba(c); (r[1], r[2], r[3], Float64(alpha)))
+fade(st::Style, c, alpha::Real) = (r = rgba(st, c); (r[1], r[2], r[3], Float64(alpha)))
+
+"Apply a color to the context, accepting any [`rgba`](@ref) form."
+setcolor!(cr::CairoContext, col) = set_source_rgba(cr, rgba(col)...)
 
 "Select the style's font at `size` (defaults to the style's own size)."
 function setfont!(c::Canvas; size::Real = c.style.size, bold::Bool = false)
