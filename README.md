@@ -7,6 +7,9 @@
 
 A lightweight package to generate borderless, always-on-top desktop panels you fill with your own content (including choosing colors as in the latex svgnames package and full math) — a conky-like window, driven from Julia.
 
+This package is still under development, so please advise of any infelicities.
+
+
 ```julia
 using StatusWindows
 
