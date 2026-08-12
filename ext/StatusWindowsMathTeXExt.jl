@@ -94,10 +94,10 @@ function stamp!(cr::CairoContext, g::Glyph, ox::Int, oy::Int, color::RGBA)
     return nothing
 end
 
-function StatusWindows.texmath!(c::Canvas, tex::AbstractString;
-                                color::RGBA = c.style.fg,
-                                size::Real = c.style.size * 1.35,
-                                align::Symbol = :left)
+function StatusWindows.math!(c::Canvas, tex::AbstractString;
+                             color::RGBA = c.style.fg,
+                             size::Real = c.style.size * 1.35,
+                             align::Symbol = :left)
     st = c.style
     glyphs, rules, (xmin, ymin, xmax, ymax) = layout(tex, size)
     isempty(glyphs) && isempty(rules) && return c
@@ -131,12 +131,12 @@ function StatusWindows.texmath!(c::Canvas, tex::AbstractString;
 end
 
 """
-    texwidth(c::Canvas, tex; size)
+    mathwidth(c::Canvas, tex; size)
 
-Width in pixels that [`texmath!`](@ref) would need for `tex`.
+Width in pixels that [`math!`](@ref) would need for `tex`.
 """
-function StatusWindows.texwidth(c::Canvas, tex::AbstractString;
-                                size::Real = c.style.size * 1.35)
+function StatusWindows.mathwidth(c::Canvas, tex::AbstractString;
+                                 size::Real = c.style.size * 1.35)
     _, _, (xmin, _, xmax, _) = layout(tex, size)
     return xmax - xmin
 end

@@ -69,14 +69,14 @@ function content(c)
     spacer!(c)
 
     heading!(c, "math")
-    # math! is always available: Pango markup, panel's own font.
-    math!(c, "\\sigma^2 = 0.37   \\mu \\pm 2\\sigma")
+    # poormansmath! is always available: Pango markup, panel's own font.
+    poormansmath!(c, "\\sigma^2 = 0.37   \\mu \\pm 2\\sigma")
     if HAS_TEX
-        # texmath! needs MathTeXEngine -- real fractions and limits.
-        texmath!(c, raw"\hat{\beta} = (X^TX)^{-1}X^Ty")
-        texmath!(c, raw"\sum_{i=1}^{n} \frac{x_i}{\sigma}"; color = c.style.accent)
+        # math! needs MathTeXEngine -- real fractions and limits.
+        math!(c, raw"\hat{\beta} = (X^TX)^{-1}X^Ty")
+        math!(c, raw"\sum_{i=1}^{n} \frac{x_i}{\sigma}"; color = c.style.accent)
     else
-        math!(c, "\\sum_{i=1}^n x_i / \\sigma"; color = c.style.accent)
+        poormansmath!(c, "\\sum_{i=1}^n x_i / \\sigma"; color = c.style.accent)
         text!(c, "(load MathTeXEngine for real TeX)"; color = c.style.dim, size = 10)
     end
 end

@@ -59,20 +59,47 @@ end
 
 ## Math
 
-`math!` draws LaTeX-ish notation: `_` and `^` become real subscripts and
-superscripts, and a few hundred commands map to their Unicode characters.
+`math!` typesets real TeX — fractions, radicals, limits stacked over big
+operators:
 
 ```julia
+using StatusWindows, MathTeXEngine   # both, in either order
+
 draw!(p) do c
     heading!(c, "estimates")
-    math!(c, "\\sigma^2 = 0.37")
-    math!(c, "\\sum_{i=1}^n x_i \\leq \\infty")
-    math!(c, "x_{i+1}^{2n} \\to \\theta")
-    math!(c, "p \\ll 0.01"; color = c.style.accent, align = :right)
+    math!(c, raw"\frac{\alpha}{\beta} + \sqrt{x^2}")
+    math!(c, raw"\sum_{i=1}^{n} x_i^2")
+    math!(c, raw"\hat{\beta} = (X^TX)^{-1}X^Ty")
 end
 ```
 
-This runs on Pango markup, not a TeX engine, which sets the ceiling:
+[MathTeXEngine.jl](https://github.com/Kolaru/MathTeXEngine.jl) is a **weak
+dependency**: it is not installed with this package, and `math!` does not
+exist until you load it — at which point a package extension supplies it.
+`mathwidth` gives the pixel width it would need, for laying things out by
+hand.
+
+It is also the *portable* path, which is not obvious for the heavier of
+two options. MathTeXEngine ships its own fonts and rasterizes through
+FreeType, so it bypasses fontconfig entirely and renders identically on a
+machine with no math fonts installed at all.
+
+### Without the dependency
+
+`poormansmath!` draws LaTeX-ish notation using nothing but Cairo: `_` and
+`^` become real subscripts and superscripts, and a few hundred commands map
+to their Unicode characters.
+
+```julia
+draw!(p) do c
+    poormansmath!(c, "\\sigma^2 = 0.37")
+    poormansmath!(c, "\\sum_{i=1}^n x_i \\leq \\infty")
+    poormansmath!(c, "p \\ll 0.01"; color = c.style.accent, align = :right)
+end
+```
+
+The name is a warning. This runs on Pango markup, not a TeX engine, which
+sets the ceiling:
 
 * **Works** — sub/superscripts with grouping, Greek, relations, arrows,
   set and logic symbols, most binary operators.
@@ -81,48 +108,20 @@ This runs on Pango markup, not a TeX engine, which sets the ceiling:
 * **Fails quietly** — a command outside the table is emitted verbatim, so
   `\hat\beta` draws the literal text `\hat` followed by β. Nothing errors.
   Check with `Cairo.tex2pango(s, size)` if unsure.
+* **Depends on the machine** — it asks fontconfig for a math font by name,
+  so the same code looks different on a box that has STIX and one that
+  does not.
 
 For simple readouts, raw Unicode is often less trouble than markup —
 `text!(c, "σ² = 0.37")` needs no escaping, and the Julia REPL's LaTeX
-completions (`\sigma<tab>`) type the characters for you. `mathwidth` gives
-the pixel width `math!` would need, for laying things out by hand.
+completions (`\sigma<tab>`) type the characters for you.
+`poormansmathwidth` is the matching width function.
 
-`math!` picks its font automatically: the best installed math font
+`poormansmath!` picks its font automatically: the best installed math font
 (STIX Two Math, Latin Modern Math, ...), falling back to the panel's body
-font when none is present, so it works everywhere and looks better where
-it can. `Style(mathfont = "...")` overrides that — and because naming a
-font is a request rather than a preference, naming one you do not have
-warns instead of silently substituting. `fontfamilies()` lists what Pango
-can actually use here.
-
-### Real typesetting
-
-For fractions, radicals and limits stacked over big operators, load
-[MathTeXEngine.jl](https://github.com/Kolaru/MathTeXEngine.jl) and use
-`texmath!`:
-
-```julia
-using StatusWindows, MathTeXEngine   # both, in either order
-
-draw!(p) do c
-    texmath!(c, raw"\frac{\alpha}{\beta} + \sqrt{x^2}")
-    texmath!(c, raw"\sum_{i=1}^{n} x_i^2")
-    texmath!(c, raw"\hat{\beta} = (X^TX)^{-1}X^Ty")
-end
-```
-
-MathTeXEngine is a **weak dependency**: it is not installed with this
-package, and `texmath!` does not exist until you load it — at which point
-a package extension supplies it. Nobody pays for a TeX engine to draw
-`σ² = 0.37`.
-
-It is also the *more portable* of the two paths, which is not obvious.
-MathTeXEngine ships its own fonts and rasterizes through FreeType, so it
-bypasses fontconfig entirely and renders identically on a machine with no
-math fonts installed. The lightweight Pango path is the one with an
-environment dependency. Use `texmath!` when the notation matters or the
-machine is unknown, `math!` when you want cheap sub/superscripts in the
-panel's own font.
+font when none is present. `Style(mathfont = "...")` overrides that — and
+because naming a font is a request rather than a preference, naming one you
+do not have warns instead of silently substituting.
 
 ## Printing and export
 
@@ -152,6 +151,12 @@ Colours, font and spacing come from `Style`:
 ```julia
 Panel(style = Style(font = "Iosevka", size = 12.0, bg = (0.0, 0.0, 0.0, 0.0)))
 ```
+
+`font` defaults to empty, which means "the first installed monospaced face
+for this platform" — DejaVu Sans Mono on Linux, Menlo on macOS, Consolas on
+Windows — so one `Style` renders sensibly everywhere instead of naming a
+font that only one system ships. `fontfamilies()` lists what Pango can
+actually use here.
 
 A `bg` alpha of `0.0` gives the classic conky look, where only the text
 floats over the wallpaper.

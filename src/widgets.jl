@@ -66,9 +66,10 @@ function text!(c::Canvas, str::AbstractString;
 end
 
 """
-    math!(c::Canvas, tex; color, size, align)
+    poormansmath!(c::Canvas, tex; color, size, align)
 
-Draw a line of mathematical notation and advance the cursor.
+Draw a line of mathematical notation with no dependency beyond Cairo, and
+advance the cursor.
 
 `tex` is LaTeX-ish: `_` and `^` become real subscripts and superscripts,
 and Cairo's token table maps a few hundred commands (`\\alpha`, `\\sum`,
@@ -76,24 +77,25 @@ and Cairo's token table maps a few hundred commands (`\\alpha`, `\\sum`,
 `x_{i+1}^{2n}` works.
 
 ```julia
-math!(c, "\\sigma^2 = 0.37")
-math!(c, "\\sum_{i=1}^n x_i \\leq \\infty")
+poormansmath!(c, "\\sigma^2 = 0.37")
+poormansmath!(c, "\\sum_{i=1}^n x_i \\leq \\infty")
 ```
 
-This is Pango markup underneath, not a TeX engine: there is no fraction,
-radical, matrix or limits-over-the-operator layout. See the README for
-what to reach for when you need those.
+This is Pango markup underneath, not a TeX engine, and the name is a
+warning: there is no fraction, radical, matrix or limits-over-the-operator
+layout, and the result depends on which fonts the machine happens to have.
+[`math!`](@ref) does the job properly; this is what you get for free.
 
 Commands outside the table are passed through verbatim rather than
 raising, so `\\hat\\beta` draws a literal `\\hat` followed by β. Check
-anything unusual against [`Cairo.tex2pango`](@ref) before trusting it.
+anything unusual against `Cairo.tex2pango` before trusting it.
 
 Text is not escaped, so a literal `<`, `>` or `&` in `tex` will confuse
 Pango — write `\\lt`, `\\gt` and `\\&` instead.
 """
-function math!(c::Canvas, tex::AbstractString;
-               color::RGBA = c.style.fg, size::Real = c.style.size,
-               align::Symbol = :left)
+function poormansmath!(c::Canvas, tex::AbstractString;
+                       color::RGBA = c.style.fg, size::Real = c.style.size,
+                       align::Symbol = :left)
     st = c.style
     # Pango takes its font from a description string, not from the toy
     # select_font_face API the other widgets use.
@@ -116,7 +118,7 @@ function math!(c::Canvas, tex::AbstractString;
 end
 
 """
-    texmath!(c::Canvas, tex; color, size, align)
+    math!(c::Canvas, tex; color, size, align)
 
 Draw real TeX math — fractions, radicals, limits stacked over big
 operators — and advance the cursor.
@@ -128,42 +130,44 @@ which is a weak dependency: the method only exists once you load it.
 using StatusWindows, MathTeXEngine   # both, in either order
 
 draw!(p) do c
-    texmath!(c, raw"\\frac{\\alpha}{\\beta} + \\sqrt{x^2}")
+    math!(c, raw"\\frac{\\alpha}{\\beta} + \\sqrt{x^2}")
 end
 ```
 
-Unlike [`math!`](@ref) this is a genuine TeX layout engine, and it carries
-its own fonts, so it renders identically on machines with no math fonts
-installed. It is heavier: glyphs are rasterized and composited one at a
-time, which is fine at the once-a-second refresh a panel runs at.
+This is a genuine TeX layout engine, and it carries its own fonts, so it
+renders identically on every machine whether or not any math font is
+installed. It is heavier than [`poormansmath!`](@ref): glyphs are
+rasterized and composited one at a time, which is fine at the once-a-second
+refresh a panel runs at.
 
-Prefer `math!` for plain sub/superscript notation — it is cheaper, and it
-picks up the panel's own font.
+Reach for `poormansmath!` when you want plain sub/superscripts in the
+panel's own font and would rather not take the dependency.
 """
-texmath!(args...; kwargs...) = error("""
-    StatusWindows: texmath! needs MathTeXEngine.jl.
+math!(args...; kwargs...) = error("""
+    StatusWindows: math! needs MathTeXEngine.jl.
 
         using Pkg; Pkg.add("MathTeXEngine")
         using MathTeXEngine
 
     loads the extension that defines it. For sub/superscript notation
-    without the extra dependency, use math! instead.""")
+    without the extra dependency, use poormansmath! instead.""")
 
 """
-    texwidth(c::Canvas, tex; size)
+    mathwidth(c::Canvas, tex; size)
 
-Width in pixels that [`texmath!`](@ref) would need for `tex`. Like
-`texmath!`, this comes from the MathTeXEngine extension.
+Width in pixels that [`math!`](@ref) would need for `tex`. Like `math!`,
+this comes from the MathTeXEngine extension.
 """
-texwidth(args...; kwargs...) =
-    error("StatusWindows: texwidth needs MathTeXEngine.jl — `using MathTeXEngine`.")
+mathwidth(args...; kwargs...) =
+    error("StatusWindows: mathwidth needs MathTeXEngine.jl — `using MathTeXEngine`.")
 
 """
-    mathwidth(c::Canvas, tex; size = c.style.size)
+    poormansmathwidth(c::Canvas, tex; size = c.style.size)
 
-Width in pixels that [`math!`](@ref) would need for `tex`.
+Width in pixels that [`poormansmath!`](@ref) would need for `tex`.
 """
-function mathwidth(c::Canvas, tex::AbstractString; size::Real = c.style.size)
+function poormansmathwidth(c::Canvas, tex::AbstractString;
+                           size::Real = c.style.size)
     Cairo.set_font_face(c.cr, string(mathfontof(c.style), " ", size))
     return Cairo.textwidth(c.cr, Cairo.tex2pango(String(tex), Float64(size)), true)
 end

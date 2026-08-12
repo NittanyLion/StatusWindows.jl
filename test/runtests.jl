@@ -58,11 +58,11 @@ painted(buf) = count(!=(0), buf)
         end
     end
 
-    @testset "math" begin
+    @testset "poor man's math" begin
         buf, _, c = testcanvas()
 
         y, px = c.y, painted(buf)
-        math!(c, "\\sigma^2 = 0.37")
+        poormansmath!(c, "\\sigma^2 = 0.37")
         @test c.y > y
         @test painted(buf) > px
 
@@ -79,9 +79,9 @@ painted(buf) = count(!=(0), buf)
         @test occursin("i+1", grouped)
         @test !occursin("{", grouped)
 
-        @test mathwidth(c, "\\sum_{i=1}^n x_i") > mathwidth(c, "x")
-        @test math!(c, "\\infty"; align = :right) === c
-        @test math!(c, "\\mu \\pm 2\\sigma"; align = :center) === c
+        @test poormansmathwidth(c, "\\sum_{i=1}^n x_i") > poormansmathwidth(c, "x")
+        @test poormansmath!(c, "\\infty"; align = :right) === c
+        @test poormansmath!(c, "\\mu \\pm 2\\sigma"; align = :center) === c
     end
 
     @testset "font metrics" begin
@@ -133,13 +133,31 @@ painted(buf) = count(!=(0), buf)
         # assert the invariant rather than a specific family.
         st = Style()
         chosen = StatusWindows.mathfontof(st)
-        @test chosen in StatusWindows.MATH_FONTS || chosen == st.font
+        @test chosen in StatusWindows.MATH_FONTS ||
+              chosen == StatusWindows.fontof(st)
 
         # An explicitly named font is honoured verbatim...
         @test StatusWindows.mathfontof(Style(mathfont = "DejaVu Sans")) == "DejaVu Sans"
         # ...but a missing one warns rather than silently substituting.
         @test_logs (:warn, r"not installed") StatusWindows.mathfontof(
             Style(mathfont = "Nonexistent Font XYZ"))
+    end
+
+    @testset "body font selection" begin
+        # The default is empty and resolves per platform, so that one Style
+        # renders on Linux, macOS and Windows without naming a font only one
+        # of them ships.
+        @test Style().font == ""
+        # Installed or not, the result is always one of the candidates.
+        @test StatusWindows.fontof(Style()) in StatusWindows.BODY_FONTS
+
+        # On this machine at least one candidate should really be installed.
+        @test any(in(fontfamilies()), StatusWindows.BODY_FONTS)
+
+        # Same request-vs-preference rule as the math font.
+        @test StatusWindows.fontof(Style(font = "DejaVu Sans")) == "DejaVu Sans"
+        @test_logs (:warn, r"not installed") StatusWindows.fontof(
+            Style(font = "Nonexistent Body Font XYZ"))
     end
 
     @testset "render to file" begin
@@ -176,22 +194,22 @@ painted(buf) = count(!=(0), buf)
 
         buf, _, c = testcanvas()
         y, px = c.y, painted(buf)
-        texmath!(c, raw"\frac{\alpha}{\beta}")
+        math!(c, raw"\frac{\alpha}{\beta}")
         @test c.y > y
         @test painted(buf) > px
 
         # Real layout: a fraction is taller than its numerator alone, and a
         # sum with limits is taller than a bare sigma.
         _, _, c2 = testcanvas()
-        tall = let y0 = c2.y; texmath!(c2, raw"\frac{\alpha}{\beta}"); c2.y - y0 end
+        tall = let y0 = c2.y; math!(c2, raw"\frac{\alpha}{\beta}"); c2.y - y0 end
         _, _, c3 = testcanvas()
-        flat = let y0 = c3.y; texmath!(c3, raw"\alpha"); c3.y - y0 end
+        flat = let y0 = c3.y; math!(c3, raw"\alpha"); c3.y - y0 end
         @test tall > flat
 
-        @test texwidth(c, raw"\frac{1}{2}") > 0
-        @test texwidth(c, raw"xxxxx") > texwidth(c, raw"x")
-        @test texmath!(c, raw"\sqrt{x^2}"; align = :right) === c
-        @test texmath!(c, raw"\int_0^\infty"; align = :center) === c
+        @test mathwidth(c, raw"\frac{1}{2}") > 0
+        @test mathwidth(c, raw"xxxxx") > mathwidth(c, raw"x")
+        @test math!(c, raw"\sqrt{x^2}"; align = :right) === c
+        @test math!(c, raw"\int_0^\infty"; align = :center) === c
     end
 
     @testset "Style is constructible and overridable" begin

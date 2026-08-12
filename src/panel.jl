@@ -86,6 +86,15 @@ function Panel(; width::Integer = 300, height::Integer = 220,
     scale isa Symbol && scale !== :auto &&
         throw(ArgumentError("StatusWindows: scale must be :auto or a number"))
 
+    # Cocoa insists that windows are created and polled on the main thread.
+    # `start!` uses @async, which is sticky and stays on whatever thread made
+    # the panel, so the only way to get this wrong is Threads.@spawn -- say so
+    # here rather than letting AppKit abort the process.
+    Sys.isapple() && Threads.threadid() != 1 && error("""
+        StatusWindows: on macOS a Panel must be created on thread 1, but this \
+        is thread $(Threads.threadid()). Create it on the main thread; `start!` \
+        will keep its redraw loop there.""")
+
     init_glfw!(force_x11)
     GLFW.DefaultWindowHints()
     # Core 3.3 with forward compatibility is the profile macOS will give us,
