@@ -207,8 +207,5 @@ and no code path is platform-specific apart from the X11 request above — but
 
 ```julia
 using Pkg
-Pkg.add(url = "https://github.com/NittanyLion/StatusWindows.jl")
+Pkg.add("StatusWindows")
 ```
-
-Once the package is in the General registry this becomes
-`Pkg.add("StatusWindows")`.
