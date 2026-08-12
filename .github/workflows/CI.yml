@@ -23,6 +23,8 @@ jobs:
       fail-fast: false
       matrix:
         version:
+          - '1.10'   # oldest supported, per [compat] in Project.toml
+          - '1.11'
           - '1.12'
           - 'pre'
         os:
