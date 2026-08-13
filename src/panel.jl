@@ -139,7 +139,13 @@ function Panel(; width::Integer = 300, height::Integer = 220,
         will keep its redraw loop there.""")
 
     if !hasdisplay()
-        @warn """StatusWindows: no display, so this panel will do nothing. \
+        # Say which of the two reasons applies: on a machine that does have a
+        # display, "no display" would send someone hunting for an X server
+        # they are already running.
+        why = get(ENV, "JULIA_GLFW_PLATFORM", "") == "null" ?
+              "JULIA_GLFW_PLATFORM=null asks for GLFW's windowless null backend" :
+              "no display"
+        @warn """StatusWindows: $why, so this panel will do nothing. \
                  Use render(...) to write a .pdf, .svg or .png instead, which \
                  needs no window.""" maxlog=1
         return inertpanel(style, width, height)

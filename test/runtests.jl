@@ -267,11 +267,22 @@ painted(buf) = count(!=(0), buf)
         @test close(p) === nothing
 
         # Constructing one through the public API warns rather than throwing.
+        # Clear the platform override: the warning names it when it is set,
+        # so leaving it in the environment would change the message.
         if Sys.islinux()
-            withenv("DISPLAY" => nothing, "WAYLAND_DISPLAY" => nothing) do
+            withenv("DISPLAY" => nothing, "WAYLAND_DISPLAY" => nothing,
+                    "JULIA_GLFW_PLATFORM" => nothing) do
                 q = @test_logs (:warn, r"no display") Panel()
                 @test !isactive(q)
             end
+        end
+
+        # When the null platform is the reason, the warning says so rather
+        # than claiming there is no display -- which on a desktop would be
+        # both false and unhelpful.
+        withenv("DISPLAY" => ":0", "JULIA_GLFW_PLATFORM" => "null") do
+            q = @test_logs (:warn, r"JULIA_GLFW_PLATFORM=null") Panel()
+            @test !isactive(q)
         end
     end
 
