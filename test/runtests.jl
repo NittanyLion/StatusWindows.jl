@@ -286,6 +286,72 @@ painted(buf) = count(!=(0), buf)
         end
     end
 
+    @testset "GLFW bindings" begin
+        G = StatusWindows.GLFW
+
+        # The reason this binding exists: loading the package must not bring
+        # a window system up. If this fails, `using StatusWindows` has gone
+        # back to needing a display and nothing below matters.
+        @test !G.isinitialized()
+
+        # Transcribed from GLFW's header via GLFW.jl; a typo here would be a
+        # hint silently applied to the wrong property.
+        @test G.PLATFORM == 0x00050003
+        @test G.PLATFORM_X11 == 0x00060004
+        @test G.DECORATED == 0x00020005
+        @test G.FLOATING == 0x00020007
+        @test G.TRANSPARENT_FRAMEBUFFER == 0x0002000A
+        @test G.MOUSE_PASSTHROUGH == 0x0002000D
+        @test G.SCALE_TO_MONITOR == 0x0002200C
+        @test G.OPENGL_CORE_PROFILE == 0x00032001
+        @test (G.RELEASE, G.PRESS) == (0, 1)
+        @test G.KEY_ESCAPE == 256
+
+        @test G.platformcode("x11") == G.PLATFORM_X11
+        @test G.platformcode("wayland") == G.PLATFORM_WAYLAND
+        @test G.platformcode("null") == G.PLATFORM_NULL
+        @test G.platformcode("nonsense") == G.ANY_PLATFORM
+
+        # An explicit request beats force_x11; without one, X11 is asked for
+        # only on a Linux box that has an X display to ask about.
+        withenv("JULIA_GLFW_PLATFORM" => "wayland") do
+            @test StatusWindows.platformchoice(true) == G.PLATFORM_WAYLAND
+        end
+        withenv("JULIA_GLFW_PLATFORM" => nothing, "DISPLAY" => ":0") do
+            @test StatusWindows.platformchoice(true) ==
+                  (Sys.islinux() ? G.PLATFORM_X11 : G.ANY_PLATFORM)
+            @test StatusWindows.platformchoice(false) == G.ANY_PLATFORM
+        end
+        withenv("JULIA_GLFW_PLATFORM" => nothing, "DISPLAY" => nothing) do
+            @test StatusWindows.platformchoice(true) == G.ANY_PLATFORM
+        end
+
+        # The callback registry, exercised on a handle no window owns: this
+        # is the Julia half of the path GLFW drives, and it needs no display.
+        handle = Ptr{Cvoid}(UInt(0xbeef))
+        window = G.Window(handle)
+        @test occursin("beef", sprint(show, window))
+        @test occursin("null", sprint(show, G.Window(C_NULL)))
+
+        seen = Any[]
+        G.register!(window)
+        G.callbacks(window).key = (win, args...) -> push!(seen, (win, args))
+        G.dispatch(handle, :key, Cint(65), Cint(0), G.PRESS, Cint(0))
+        @test length(seen) == 1
+        @test seen[1][1] == window
+        @test seen[1][2] == (65, 0, 1, 0)
+
+        # Callbacks that were never set, and events for windows that are
+        # gone, have to be quiet rather than throwing: GLFW is calling, and
+        # an exception reaching it would abort the process.
+        @test G.dispatch(handle, :cursorpos, 1.0, 2.0) === nothing
+        G.callbacks(window).key = (_...) -> error("boom")
+        @test_logs (:error, r"callback threw") G.dispatch(handle, :key, Cint(1),
+                                                          Cint(0), G.PRESS, Cint(0))
+        G.unregister!(window)
+        @test G.dispatch(handle, :key, Cint(1), Cint(0), G.PRESS, Cint(0)) === nothing
+    end
+
     @testset "render to file" begin
         content = c -> (heading!(c, "report"); kv!(c, "n", 1024); bar!(c, "cpu", 0.4))
 

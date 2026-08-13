@@ -5,14 +5,22 @@ a Cairo image surface drawn in Julia, uploaded to a GL texture each tick.
 
 ## Things that will bite you
 
-**GLFW initializes when it is loaded, not when you use it.** `GLFW.jl`'s own
-`__init__` calls `glfwInit()` and throws if it fails, so merely running
-`using StatusWindows` needs a display. Nothing in this package can catch
-that; the escape hatch is `JULIA_GLFW_PLATFORM=null` in the environment,
-which GLFW.jl honors and which `hasdisplay()` reads as "headless" so panels
-come back inert rather than tripping over OSMesa. CI instead starts Xvfb
-before any Julia runs, because it wants real windows; see
-`.github/workflows/CI.yml`.
+**GLFW is bound here, not depended on.** `src/glfw/` is this package's own
+binding to the twenty-odd GLFW entry points a panel needs; there is no
+dependency on GLFW.jl, and `StatusWindows.GLFW` is that submodule, not that
+package. The reason is initialization: GLFW.jl calls `glfwInit()` from its
+`__init__` and throws when there is no display, which made `using
+StatusWindows` fail on a server before a line of this code ran. Here GLFW
+comes up on the first `Panel` that wants a window and `GLFW.initialize`
+returns `false` instead of throwing, so every failure on the way to a window
+degrades to an inert panel. Nothing needs a display: not the tests, not the
+docs build, not CI.
+
+Keep it that way. If `StatusWindows.GLFW.isinitialized()` is true right
+after `using StatusWindows`, something has started calling GLFW at load time
+and the headless story is broken; there is a test for exactly that. Adding a
+GLFW call means adding a binding in `src/glfw/`, checked against GLFW.jl's
+for the signature, with anything borrowed recorded in `src/glfw/NOTICE.md`.
 
 **The test suite must stay headless.** Tests draw into a bare Cairo image
 surface — no window, no GL context (`test/runtests.jl`, `testcanvas`).

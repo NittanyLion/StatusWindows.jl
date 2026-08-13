@@ -213,23 +213,21 @@ end
 run!(p)                 # returns immediately if there is no display
 ```
 
-One caveat lives upstream: `using StatusWindows` itself needs a display,
-because GLFW.jl calls `glfwInit()` from its own `__init__` and throws when
-that fails — before any code here runs. The fix is one environment variable:
+There is nothing to configure and no environment variable to remember.
+`using StatusWindows` touches no window system: GLFW is started by the first
+`Panel` that wants one, and if it will not start — no display, a stale
+`DISPLAY`, a session that hands out no connection, missing libraries — that
+is a warning and an inert panel, not an exception. The whole test suite runs
+this way, and so does CI, on a runner with no X server at all.
 
-```sh
-JULIA_GLFW_PLATFORM=null julia script.jl
-```
+`JULIA_GLFW_PLATFORM` is still read, and still means what it means to
+GLFW.jl: it names the backend to ask for — `x11`, `wayland`, `cocoa`,
+`win32` — and `null` forces inert panels even on a machine that does have a
+display, which is a way to silence panels in a script you would rather not
+edit.
 
-GLFW then initializes its windowless null backend, the import succeeds, and
-`hasdisplay()` answers `false`, so every `Panel` comes back inert as above.
-The variable is safe to set unconditionally — on a machine that does have a
-display it simply means no panels appear — which suits a script deployed to
-both kinds of machine. Set it before Julia starts (or in `ENV` before
-`using StatusWindows`); by panel-creation time it is too late.
-
-To run real windows on a machine without a display — CI does, to exercise
-actual GL — start an Xvfb instead (see `.github/workflows/CI.yml`).
+To run real windows on a machine without one, start an Xvfb and point
+`DISPLAY` at it.
 
 
 ## Platform notes
@@ -284,6 +282,16 @@ dependencies and makes the drawing API just *Cairo* — `c.cr` is a plain
 The widgets (`heading!`, `kv!`, `bar!`, `sparkline!`, `text!`, `hrule!`,
 `spacer!`) are conveniences that draw at a cursor and advance it. They are
 not privileged; mix them freely with raw Cairo calls.
+
+GLFW is called directly, through the bindings in `src/glfw/` — about two
+hundred lines covering the twenty-odd entry points a panel uses, and nothing
+else. That is what makes the paragraph above about headless machines true:
+the package decides for itself when GLFW comes up and what happens when it
+will not. Those bindings were written by borrowing from
+[GLFW.jl](https://github.com/JuliaGL/GLFW.jl), which is the reference for
+calling this library from Julia; `src/glfw/NOTICE.md` records what came from
+where, and its MIT license. The library itself still arrives as a binary
+from `GLFW_jll`, unchanged.
 
 
 ## Installation

@@ -24,7 +24,6 @@ run!(p, refresh = 1.0)
 """
 module StatusWindows
 
-using GLFW
 using Cairo
 using ModernGL
 
@@ -34,6 +33,9 @@ export heading!, text!, kv!, bar!, sparkline!, hrule!, spacer!, at!
 export math!, mathwidth, poormansmath!, poormansmathwidth, content_width
 export render, printstyle, fontfamilies
 export rgba, fade, colornames
+
+include("glfw/GLFW.jl")
+using .GLFW
 
 include("style.jl")
 include("colors.jl")

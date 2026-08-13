@@ -5,6 +5,10 @@ DocMeta.setdocmeta!(StatusWindows, :DocTestSetup, :(using StatusWindows); recurs
 
 makedocs(;
     modules=[StatusWindows],
+    # src/glfw/ is the package's binding to the GLFW C library. Its
+    # docstrings are for whoever maintains it, not for anyone using a panel,
+    # so they are documented in place and left out of the manual.
+    checkdocs_ignored_modules=[StatusWindows.GLFW],
     authors="Joris Pinkse <pinkse@gmail.com> and contributors",
     sitename="StatusWindows.jl",
     format=Documenter.HTML(;

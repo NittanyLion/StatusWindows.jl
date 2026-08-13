@@ -1,8 +1,5 @@
 # The window itself: creation, the redraw tick, and the event loop.
-
-# GLFW 3.4 has GLFW_MOUSE_PASSTHROUGH but GLFW.jl does not export the
-# constant, so spell it out. Only consulted when `passthrough = true`.
-const MOUSE_PASSTHROUGH = 0x0002000D
+# `GLFW` here is this package's own binding, in src/glfw/, not GLFW.jl.
 
 """
     Panel(; kwargs...)
@@ -37,7 +34,9 @@ On a machine with no display — a server, a CI runner — there is nothing to
 put a window on, so `Panel` warns once and hands back an inert panel instead
 of failing. Every method on one does nothing, which lets a script written
 for a desktop run unchanged where there is no desktop. [`hasdisplay`](@ref)
-is the test it uses and [`isactive`](@ref) reports what you got. To produce
+is the test it uses and [`isactive`](@ref) reports what you got. Anything
+else that goes wrong on the way to a window — GLFW refusing to start, a
+session that will not hand one out — degrades the same way. To produce
 output on such a machine, use [`render`](@ref), which never needs a window.
 """
 mutable struct Panel
@@ -61,14 +60,9 @@ mutable struct Panel
     dragy::Float64
 end
 
-# GLFW.jl returns small structs from the size/position getters; unpack
-# them without caring which field names this version happens to use.
-_pair(v) = hasproperty(v, :width)  ? (Int(v.width), Int(v.height)) :
-           hasproperty(v, :x)      ? (Int(v.x), Int(v.y)) :
-                                     (Int(v[1]), Int(v[2]))
-
-# The null backend could technically open OSMesa "windows", but nobody sets
-# the variable wanting one; read it as a promise that no display is needed.
+# GLFW's null platform could technically open OSMesa "windows", but nobody
+# sets the variable wanting one; read it as a promise that no display is
+# needed.
 """
     hasdisplay() -> Bool
 
@@ -78,18 +72,22 @@ On Linux that means an X or Wayland session is reachable. macOS and Windows
 have a window server whenever a user session does, and offer nothing as
 cheap to test, so they answer `true` and let window creation be the judge.
 
-`JULIA_GLFW_PLATFORM=null` in the environment forces `false` everywhere. It
-is the variable that makes `using StatusWindows` survive a machine with no
-display — GLFW.jl reads it at load time and initializes its windowless null
-backend instead of throwing — so honoring it here means setting it always
-yields inert panels, whether or not a display happens to be present.
+`JULIA_GLFW_PLATFORM=null` in the environment forces `false` everywhere,
+which is a way to ask a desktop machine for inert panels. The variable is
+otherwise a backend request — `x11`, `wayland`, `cocoa`, `win32` — and is
+honored as one.
+
+Nothing depends on getting this right: a panel that cannot have a window
+comes back inert whatever `hasdisplay` said, because GLFW is only started
+when the first panel asks for one and failing to start it is not an error
+here. `using StatusWindows` needs no display at all.
 """
 hasdisplay() = get(ENV, "JULIA_GLFW_PLATFORM", "") != "null" &&
                (!Sys.islinux() ||
                 haskey(ENV, "DISPLAY") || haskey(ENV, "WAYLAND_DISPLAY"))
 
-# GLFW.Window wraps a Ptr but defines no == against one, so comparing the
-# window itself to C_NULL is always true. Reach for the handle.
+# GLFW.Window wraps a Ptr and defines no == against one, so comparing the
+# window itself to C_NULL is always false. Reach for the handle.
 "Whether `p` owns a real window, as opposed to being an inert stand-in."
 isactive(p::Panel) = p.window.handle != C_NULL
 
@@ -103,19 +101,22 @@ function inertpanel(style::Style, w::Integer, h::Integer)
                  false, 0.0, 0.0)
 end
 
-function init_glfw!(force_x11::Bool)
-    if force_x11 && Sys.islinux() && haskey(ENV, "DISPLAY")
-        # Must happen before GLFW.Init; harmless if GLFW is already up, in
-        # which case the platform has been chosen and we live with it.
-        try
-            GLFW.InitHint(GLFW.PLATFORM, GLFW.PLATFORM_X11)
-        catch err
-            @debug "StatusWindows: could not request the X11 backend" err
-        end
-    end
-    GLFW.Init()
-    return nothing
+# Which backend to ask GLFW for. An explicit JULIA_GLFW_PLATFORM outranks
+# force_x11, which is only a default; and X11 is worth asking for only where
+# it exists, since GLFW refuses to start on a backend it cannot provide.
+function platformchoice(force_x11::Bool)
+    haskey(ENV, "JULIA_GLFW_PLATFORM") &&
+        return GLFW.platformcode(ENV["JULIA_GLFW_PLATFORM"])
+    force_x11 && Sys.islinux() && haskey(ENV, "DISPLAY") &&
+        return GLFW.PLATFORM_X11
+    return GLFW.ANY_PLATFORM
 end
+
+# Start GLFW and say whether it came up. The first panel of the process pays
+# for this; later ones find it already running, in which case the platform
+# was settled by the first and we live with it.
+init_glfw!(force_x11::Bool) =
+    GLFW.initialize(platform = platformchoice(force_x11))
 
 function Panel(; width::Integer = 300, height::Integer = 220,
                  x::Integer = 40, y::Integer = 40,
@@ -151,7 +152,16 @@ function Panel(; width::Integer = 300, height::Integer = 220,
         return inertpanel(style, width, height)
     end
 
-    init_glfw!(force_x11)
+    if !init_glfw!(force_x11)
+        # A display the environment advertises but GLFW cannot reach: a stale
+        # DISPLAY, a session that hands out no connection, a machine missing
+        # the libraries. Degrade rather than take the script down with us.
+        @warn """StatusWindows: GLFW would not start ($(GLFW.lasterror())), so \
+                 this panel will do nothing. Use render(...) to write a .pdf, \
+                 .svg or .png instead, which needs no window.""" maxlog=1
+        return inertpanel(style, width, height)
+    end
+
     GLFW.DefaultWindowHints()
     # Core 3.3 with forward compatibility is the profile macOS will give us,
     # and it is available everywhere else too.
@@ -164,7 +174,7 @@ function Panel(; width::Integer = 300, height::Integer = 220,
     GLFW.WindowHint(GLFW.RESIZABLE, 0)
     GLFW.WindowHint(GLFW.FOCUS_ON_SHOW, 0)
     GLFW.WindowHint(GLFW.TRANSPARENT_FRAMEBUFFER, transparent)
-    passthrough && GLFW.WindowHint(MOUSE_PASSTHROUGH, 1)
+    passthrough && GLFW.WindowHint(GLFW.MOUSE_PASSTHROUGH, 1)
     # Create hidden so the panel never flashes at the wrong spot.
     GLFW.WindowHint(GLFW.VISIBLE, 0)
     # X11 and Windows size windows in device pixels, so a 280-pixel panel is
@@ -182,12 +192,12 @@ function Panel(; width::Integer = 300, height::Integer = 220,
     if window.handle == C_NULL
         # A display the window system admits to having but cannot draw on --
         # a locked-down session, a remote runner. Degrade the same way.
-        @warn "StatusWindows: could not create a window; this panel will do \
-               nothing." maxlog=1
+        @warn "StatusWindows: could not create a window ($(GLFW.lasterror())); \
+               this panel will do nothing." maxlog=1
         return inertpanel(style, width, height)
     end
 
-    winscale = max(_pair(GLFW.GetWindowSize(window))[1] / reqw, eps())
+    winscale = max(GLFW.GetWindowSize(window)[1] / reqw, eps())
     GLFW.SetWindowPos(window, round(Int, x * winscale), round(Int, y * winscale))
     GLFW.MakeContextCurrent(window)
     GLFW.SwapInterval(1)
@@ -224,7 +234,7 @@ function Panel(; width::Integer = 300, height::Integer = 220,
         end)
         GLFW.SetCursorPosCallback(window, (win, cx, cy) -> begin
             if p.dragging
-                wx, wy = _pair(GLFW.GetWindowPos(win))
+                wx, wy = GLFW.GetWindowPos(win)
                 GLFW.SetWindowPos(win, round(Int, wx + cx - p.dragx),
                                        round(Int, wy + cy - p.dragy))
             end
@@ -256,7 +266,7 @@ end
 
 "Reallocate the Cairo surface when the framebuffer size changes."
 function ensure_surface!(p::Panel)
-    fbw, fbh = _pair(GLFW.GetFramebufferSize(p.window))
+    fbw, fbh = GLFW.GetFramebufferSize(p.window)
     fbw, fbh = max(fbw, 1), max(fbh, 1)
     if (fbw, fbh) != (p.fbw, p.fbh)
         p.fbw, p.fbh = fbw, fbh
@@ -377,7 +387,7 @@ end
 
 function Base.close(p::Panel)
     p.running = false
-    if isactive(p) && GLFW.WindowShouldClose(p.window) !== nothing
+    if isactive(p)
         try
             GLFW.MakeContextCurrent(p.window)
             glDeleteTextures(1, Ref(p.tex))
@@ -387,6 +397,10 @@ function Base.close(p::Panel)
             @debug "StatusWindows: GL teardown failed" err
         end
         GLFW.DestroyWindow(p.window)
+        # Forget the handle: `run!` closes in a finally block, so calling
+        # close yourself afterwards is ordinary, and destroying a window
+        # twice is not survivable.
+        p.window = GLFW.Window(C_NULL)
     end
     return nothing
 end
