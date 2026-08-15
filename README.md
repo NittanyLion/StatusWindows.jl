@@ -15,10 +15,15 @@ using StatusWindows
 
 p = Panel(width = 280, height = 300, x = 60, y = 60)
 
+history = zeros(Float64, 48)          # one sample per tick, oldest first
+
 draw!(p) do c
+    load = Sys.loadavg()[1] / Sys.CPU_THREADS
+    popfirst!(history); push!(history, load)
+
     heading!(c, "system")
     kv!(c, "host", gethostname())
-    bar!(c, "cpu", 0.62)
+    bar!(c, "cpu", load)
     sparkline!(c, history; lo = 0.0, hi = 1.0, color = :Tomato)
 end
 
