@@ -293,6 +293,16 @@ calling this library from Julia; `src/glfw/NOTICE.md` records what came from
 where, and its MIT license. The library itself still arrives as a binary
 from `GLFW_jll`, unchanged.
 
+This is meant to be temporary, and it is not a complaint about GLFW.jl —
+that package is the work of Jay Petacat, Simon Danisch and others, it covers
+the whole of GLFW rather than the corner a panel needs, and it is where
+these bindings would rather live. The entire disagreement is one line of
+initialization policy: GLFW.jl calls `glfwInit()` from its `__init__` and
+throws when there is no display, so `using StatusWindows` used to fail on a
+headless server before any code of ours ran. The day that initialization
+becomes lazy or stops being fatal, `src/glfw/` has no reason to exist and
+the dependency on GLFW.jl comes back.
+
 
 ## Installation
 

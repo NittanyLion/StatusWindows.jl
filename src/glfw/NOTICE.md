@@ -24,7 +24,8 @@ folder exists: GLFW.jl initializes GLFW from its own `__init__` and throws
 if that fails, while here it happens on first use and reports failure by
 returning `false`.
 
-GLFW.jl is distributed under the MIT license:
+GLFW.jl is the work of Jay Petacat, Simon Danisch and the other GLFW.jl
+authors, and is distributed under the MIT license:
 
 > Copyright (c) 2013-2019 The GLFW.jl Authors
 >
