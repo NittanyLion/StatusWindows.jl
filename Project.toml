@@ -1,6 +1,6 @@
 name = "StatusWindows"
 uuid = "13c9c970-0c32-4215-a9dc-7dd338fb31da"
-version = "0.2.0"
+version = "0.2.1-DEV"
 authors = ["Joris Pinkse <pinkse@gmail.com>"]
 
 [deps]
