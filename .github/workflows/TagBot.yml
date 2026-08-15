@@ -8,6 +8,9 @@ jobs:
   TagBot:
     if: github.event_name == 'workflow_dispatch' || github.actor == 'JuliaTagBot'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the tag and create the release; the repository
+                      # default for GITHUB_TOKEN is read-only
     steps:
       - uses: JuliaRegistries/TagBot@v1
         with:
