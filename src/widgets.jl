@@ -134,6 +134,10 @@ draw!(p) do c
 end
 ```
 
+[StatusWindowsTeX.jl](https://github.com/NittanyLion/StatusWindowsTeX.jl)
+is the same thing as one package: `using StatusWindowsTeX` installs and
+loads both, and re-exports everything from each.
+
 This is a genuine TeX layout engine, and it carries its own fonts, so it
 renders identically on every machine whether or not any math font is
 installed. It is heavier than [`poormansmath!`](@ref): glyphs are
@@ -149,8 +153,13 @@ math!(args...; kwargs...) = error("""
         using Pkg; Pkg.add("MathTeXEngine")
         using MathTeXEngine
 
-    loads the extension that defines it. For sub/superscript notation
-    without the extra dependency, use poormansmath! instead.""")
+    loads the extension that defines it. Or take both packages as one:
+
+        using Pkg; Pkg.add("StatusWindowsTeX")
+        using StatusWindowsTeX
+
+    For sub/superscript notation without the extra dependency, use
+    poormansmath! instead.""")
 
 """
     mathwidth(c::Canvas, tex; size)
@@ -159,7 +168,8 @@ Width in pixels that [`math!`](@ref) would need for `tex`. Like `math!`,
 this comes from the MathTeXEngine extension.
 """
 mathwidth(args...; kwargs...) =
-    error("StatusWindows: mathwidth needs MathTeXEngine.jl — `using MathTeXEngine`.")
+    error("StatusWindows: mathwidth needs MathTeXEngine.jl — " *
+          "`using MathTeXEngine`, or `using StatusWindowsTeX` for both packages at once.")
 
 """
     poormansmathwidth(c::Canvas, tex; size = c.style.size)

@@ -124,6 +124,13 @@ exist until you load it — at which point a package extension supplies it.
 `mathwidth` gives the pixel width it would need, for laying things out by
 hand.
 
+If you would rather not think about which packages to load,
+[StatusWindowsTeX.jl](https://github.com/NittanyLion/StatusWindowsTeX.jl)
+is the two of them bundled as one: `Pkg.add("StatusWindowsTeX")` installs
+both, and `using StatusWindowsTeX` loads both and re-exports everything.
+It is a convenience only; it adds nothing that `using StatusWindows,
+MathTeXEngine` does not give you.
+
 It is also the *portable* path, which is not obvious for the heavier of
 two options. MathTeXEngine ships its own fonts and rasterizes through
 FreeType, so it bypasses fontconfig entirely and renders identically on a

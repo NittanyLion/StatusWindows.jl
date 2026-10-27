@@ -49,7 +49,16 @@ Deliberately named against intuition:
   `ext/StatusWindowsMathTeXExt.jl`. A **weak dependency**: these throw a
   helpful error until the user loads MathTeXEngine. Rasterizes its own
   bundled fonts through FreeType, so it bypasses fontconfig and looks the
-  same everywhere.
+  same everywhere. [StatusWindowsTeX.jl](https://github.com/NittanyLion/StatusWindowsTeX.jl)
+  is a separate bundle package that strong-depends on both and re-exports
+  them, so `using StatusWindowsTeX` fires the extension. It must stay a
+  pure re-export and must **never** become a trigger of this extension:
+  the triggers are MathTeXEngine and FreeTypeAbstraction, so that `using
+  StatusWindows, MathTeXEngine` keeps working for people who have never
+  heard of the bundle. It is versioned in lockstep: after registering
+  StatusWindows x.y.z, release StatusWindowsTeX x.y.z with
+  `StatusWindows = "~x.y.z"`. Its `MathTeXEngine` compat bound also has
+  to sit inside the one in this `Project.toml`; bump both together.
 - `poormansmath!` / `poormansmathwidth` — Pango markup, no extra dependency,
   no fractions or radicals, and the result depends on what fonts the machine
   has.
