@@ -1,5 +1,4 @@
 # The window itself: creation, the redraw tick, and the event loop.
-# `GLFW` here is this package's own binding, in src/glfw/, not GLFW.jl.
 
 """
     Panel(; kwargs...)
@@ -23,10 +22,11 @@ Keyword arguments:
   * `passthrough` — let clicks fall through to whatever is underneath.
     Implies the panel cannot be dragged.
   * `style` — a [`Style`](@ref) controlling colors, font and spacing.
-  * `force_x11` — on Linux, force GLFW's X11 backend. GLFW's Wayland
-    backend cannot position its own windows (the compositor decides, and
-    `SetWindowPos` is a silent no-op), so this is what makes `x` and `y`
-    mean anything under a Wayland session. Ignored if `DISPLAY` is unset.
+  * `force_x11` — on Linux, prefer GLFW's X11 backend. GLFW's Wayland
+    backend cannot position its own windows (the compositor decides), so
+    under Wayland `x`, `y`, [`move!`](@ref) and dragging all do nothing;
+    X11, through XWayland, is what makes them work. Ignored if `DISPLAY`
+    is unset.
 
 Give it content with [`draw!`](@ref), then start it with [`run!`](@ref).
 
@@ -101,22 +101,43 @@ function inertpanel(style::Style, w::Integer, h::Integer)
                  false, 0.0, 0.0)
 end
 
-# Which backend to ask GLFW for. An explicit JULIA_GLFW_PLATFORM outranks
-# force_x11, which is only a default; and X11 is worth asking for only where
-# it exists, since GLFW refuses to start on a backend it cannot provide.
+# Which backend to ask GLFW for. `nothing` hands the choice to GLFW.jl,
+# whose own search honors an explicit JULIA_GLFW_PLATFORM and otherwise
+# tries X11 first on Linux before letting GLFW pick -- which is force_x11
+# exactly, so that is all it has to say. X11 is worth preferring only where
+# it exists, since a backend GLFW cannot start costs a warning on the way to
+# the fallback. ANY_PLATFORM skips the preference, and on a Wayland session
+# lands on Wayland.
 function platformchoice(force_x11::Bool)
-    haskey(ENV, "JULIA_GLFW_PLATFORM") &&
-        return GLFW.platformcode(ENV["JULIA_GLFW_PLATFORM"])
-    force_x11 && Sys.islinux() && haskey(ENV, "DISPLAY") &&
-        return GLFW.PLATFORM_X11
+    haskey(ENV, "JULIA_GLFW_PLATFORM") && return nothing
+    force_x11 && Sys.islinux() && haskey(ENV, "DISPLAY") && return nothing
     return GLFW.ANY_PLATFORM
 end
 
-# Start GLFW and say whether it came up. The first panel of the process pays
-# for this; later ones find it already running, in which case the platform
-# was settled by the first and we live with it.
-init_glfw!(force_x11::Bool) =
-    GLFW.initialize(platform = platformchoice(force_x11))
+# Start GLFW and say whether a window system came up. The first panel of the
+# process pays for this; later ones find it already running, in which case
+# the platform was settled by the first and we live with it. When nothing
+# else works GLFW.jl falls back to GLFW's null platform, where a "window" is
+# an offscreen buffer nobody will see -- for a panel that is no window at
+# all, so it counts as failure here.
+function init_glfw!(force_x11::Bool)
+    GLFW.Init(platform = platformchoice(force_x11)) || return false
+    return GLFW.GetPlatform() != GLFW.PLATFORM_NULL
+end
+
+# GLFW's Wayland backend has no way to place a window and says so with an
+# error, which GLFW.jl's error callback turns into an exception. The panel
+# promises that positions mean nothing there, not that they throw.
+positionable() = GLFW.GetPlatform() != GLFW.PLATFORM_WAYLAND
+
+function setpos!(window::GLFW.Window, x::Integer, y::Integer)
+    positionable() && GLFW.SetWindowPos(window, x, y)
+    return nothing
+end
+
+# A GLFW 3.4 hint that GLFW.jl 4.0.0 does not yet name; the value is from
+# glfw3.h. Drop this the day GLFW.MOUSE_PASSTHROUGH exists.
+const MOUSE_PASSTHROUGH = 0x0002000D
 
 function Panel(; width::Integer = 300, height::Integer = 220,
                  x::Integer = 40, y::Integer = 40,
@@ -133,7 +154,8 @@ function Panel(; width::Integer = 300, height::Integer = 220,
     # Cocoa insists that windows are created and polled on the main thread.
     # `start!` uses @async, which is sticky and stays on whatever thread made
     # the panel, so the only way to get this wrong is Threads.@spawn -- say so
-    # here rather than letting AppKit abort the process.
+    # here rather than letting AppKit abort the process. Elsewhere GLFW.jl's
+    # own thread assertion catches the same mistake with a clear exception.
     Sys.isapple() && Threads.threadid() != 1 && error("""
         StatusWindows: on macOS a Panel must be created on thread 1, but this \
         is thread $(Threads.threadid()). Create it on the main thread; `start!` \
@@ -155,8 +177,9 @@ function Panel(; width::Integer = 300, height::Integer = 220,
     if !init_glfw!(force_x11)
         # A display the environment advertises but GLFW cannot reach: a stale
         # DISPLAY, a session that hands out no connection, a machine missing
-        # the libraries. Degrade rather than take the script down with us.
-        @warn """StatusWindows: GLFW would not start ($(GLFW.lasterror())), so \
+        # the libraries. GLFW.jl has already said what it tried; degrade
+        # rather than take the script down with us.
+        @warn """StatusWindows: GLFW found no window system it could use, so \
                  this panel will do nothing. Use render(...) to write a .pdf, \
                  .svg or .png instead, which needs no window.""" maxlog=1
         return inertpanel(style, width, height)
@@ -174,7 +197,7 @@ function Panel(; width::Integer = 300, height::Integer = 220,
     GLFW.WindowHint(GLFW.RESIZABLE, 0)
     GLFW.WindowHint(GLFW.FOCUS_ON_SHOW, 0)
     GLFW.WindowHint(GLFW.TRANSPARENT_FRAMEBUFFER, transparent)
-    passthrough && GLFW.WindowHint(GLFW.MOUSE_PASSTHROUGH, 1)
+    passthrough && GLFW.WindowHint(MOUSE_PASSTHROUGH, 1)
     # Create hidden so the panel never flashes at the wrong spot.
     GLFW.WindowHint(GLFW.VISIBLE, 0)
     # X11 and Windows size windows in device pixels, so a 280-pixel panel is
@@ -188,17 +211,19 @@ function Panel(; width::Integer = 300, height::Integer = 220,
     reqw, reqh = Int(width), Int(height)
     pixw, pixh = scale === :auto ? (reqw, reqh) :
                  (round(Int, reqw * scale), round(Int, reqh * scale))
-    window = GLFW.CreateWindow(pixw, pixh, String(title))
-    if window.handle == C_NULL
+    window = try
+        GLFW.CreateWindow(pixw, pixh, String(title))
+    catch err
         # A display the window system admits to having but cannot draw on --
         # a locked-down session, a remote runner. Degrade the same way.
-        @warn "StatusWindows: could not create a window ($(GLFW.lasterror())); \
+        err isa GLFW.GLFWError || rethrow()
+        @warn "StatusWindows: could not create a window ($(sprint(showerror, err))); \
                this panel will do nothing." maxlog=1
         return inertpanel(style, width, height)
     end
 
     winscale = max(GLFW.GetWindowSize(window)[1] / reqw, eps())
-    GLFW.SetWindowPos(window, round(Int, x * winscale), round(Int, y * winscale))
+    setpos!(window, round(Int, x * winscale), round(Int, y * winscale))
     GLFW.MakeContextCurrent(window)
     GLFW.SwapInterval(1)
 
@@ -221,7 +246,9 @@ function Panel(; width::Integer = 300, height::Integer = 220,
         end
     end)
 
-    if movable && !passthrough
+    # Dragging works by setting the window position, so where that is not
+    # possible there is nothing to wire up.
+    if movable && !passthrough && positionable()
         GLFW.SetMouseButtonCallback(window, (win, button, action, _) -> begin
             if button == GLFW.MOUSE_BUTTON_LEFT
                 if action == GLFW.PRESS
@@ -372,8 +399,7 @@ stop!(p::Panel) = (p.running = false; p)
 "Move the panel's top-left corner to `(x, y)`, in logical pixels."
 function move!(p::Panel, x::Integer, y::Integer)
     isactive(p) || return p
-    GLFW.SetWindowPos(p.window, round(Int, x * p.scale),
-                                round(Int, y * p.scale))
+    setpos!(p.window, round(Int, x * p.scale), round(Int, y * p.scale))
     return p
 end
 

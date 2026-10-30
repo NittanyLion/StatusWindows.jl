@@ -229,14 +229,15 @@ There is nothing to configure and no environment variable to remember.
 `using StatusWindows` touches no window system: GLFW is started by the first
 `Panel` that wants one, and if it will not start — no display, a stale
 `DISPLAY`, a session that hands out no connection, missing libraries — that
-is a warning and an inert panel, not an exception. The whole test suite runs
-this way, and so does CI, on a runner with no X server at all.
+is a warning and an inert panel, not an exception. GLFW.jl says what it
+tried on the way, and when its last resort is GLFW's windowless null
+platform the panel counts that as no window at all. The whole test suite
+runs this way, and so does CI, on a runner with no X server at all.
 
-`JULIA_GLFW_PLATFORM` is still read, and still means what it means to
-GLFW.jl: it names the backend to ask for — `x11`, `wayland`, `cocoa`,
-`win32` — and `null` forces inert panels even on a machine that does have a
-display, which is a way to silence panels in a script you would rather not
-edit.
+`JULIA_GLFW_PLATFORM` is GLFW.jl's variable and means what it means there:
+it names the backend to ask for — `x11`, `wayland`, `cocoa`, `win32` — and
+`null` forces inert panels even on a machine that does have a display,
+which is a way to silence panels in a script you would rather not edit.
 
 To run real windows on a machine without one, start an Xvfb and point
 `DISPLAY` at it.
@@ -248,11 +249,11 @@ These are the sharp edges. They are properties of the window systems, not of
 this package.
 
 **Linux / Wayland.** GLFW's Wayland backend cannot position its own windows:
-the compositor decides placement and `SetWindowPos` is a silent no-op, so
-`x` and `y` would be ignored. `Panel` therefore requests GLFW's **X11**
-backend on Linux, which routes through XWayland on a Wayland session and
-makes placement work. Pass `force_x11 = false` to opt out — and expect the
-panel to land wherever the compositor likes.
+the compositor decides placement, so `x`, `y`, `move!` and dragging would
+do nothing. `Panel` therefore prefers GLFW's **X11** backend on Linux, which
+routes through XWayland on a Wayland session and makes placement work. Pass
+`force_x11 = false` to opt out — and expect the panel to land wherever the
+compositor likes, and to stay there.
 
 **HiDPI.** All geometry — `width`, `height`, `x`, `y`, `move!`, `resize!` —
 is in logical pixels, so a panel comes out roughly the same physical size on
@@ -295,25 +296,15 @@ The widgets (`heading!`, `kv!`, `bar!`, `sparkline!`, `text!`, `hrule!`,
 `spacer!`) are conveniences that draw at a cursor and advance it. They are
 not privileged; mix them freely with raw Cairo calls.
 
-GLFW is called directly, through the bindings in `src/glfw/` — about two
-hundred lines covering the twenty-odd entry points a panel uses, and nothing
-else. That is what makes the paragraph above about headless machines true:
-the package decides for itself when GLFW comes up and what happens when it
-will not. Those bindings were written by borrowing from
-[GLFW.jl](https://github.com/JuliaGL/GLFW.jl), which is the reference for
-calling this library from Julia; `src/glfw/NOTICE.md` records what came from
-where, and its MIT license. The library itself still arrives as a binary
-from `GLFW_jll`, unchanged.
-
-This is meant to be temporary, and it is not a complaint about GLFW.jl —
-that package is the work of Jay Petacat, Simon Danisch and others, it covers
-the whole of GLFW rather than the corner a panel needs, and it is where
-these bindings would rather live. The entire disagreement is one line of
-initialization policy: GLFW.jl calls `glfwInit()` from its `__init__` and
-throws when there is no display, so `using StatusWindows` used to fail on a
-headless server before any code of ours ran. The day that initialization
-becomes lazy or stops being fatal, `src/glfw/` has no reason to exist and
-the dependency on GLFW.jl comes back.
+GLFW is called through [GLFW.jl](https://github.com/JuliaGL/GLFW.jl)
+version 4, and the headless story above is that package's as much as this
+one's. Earlier GLFW.jl called `glfwInit()` from its `__init__` and threw
+when there was no display, so `using StatusWindows` failed on a server
+before any code of ours ran; for a while this package carried its own
+two-hundred-line binding to work around it. GLFW.jl 4 initializes lazily
+and reports a failed start by returning `false` — a change that went
+upstream from here — so the binding is gone and `Panel` simply asks GLFW.jl
+for a window when it wants one.
 
 
 ## Installation

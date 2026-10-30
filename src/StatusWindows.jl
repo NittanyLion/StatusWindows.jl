@@ -34,8 +34,7 @@ export math!, mathwidth, poormansmath!, poormansmathwidth, content_width
 export render, printstyle, fontfamilies
 export rgba, fade, colornames
 
-include("glfw/GLFW.jl")
-using .GLFW
+using GLFW
 
 include("style.jl")
 include("colors.jl")

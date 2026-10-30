@@ -5,22 +5,26 @@ a Cairo image surface drawn in Julia, uploaded to a GL texture each tick.
 
 ## Things that will bite you
 
-**GLFW is bound here, not depended on.** `src/glfw/` is this package's own
-binding to the twenty-odd GLFW entry points a panel needs; there is no
-dependency on GLFW.jl, and `StatusWindows.GLFW` is that submodule, not that
-package. The reason is initialization: GLFW.jl calls `glfwInit()` from its
-`__init__` and throws when there is no display, which made `using
-StatusWindows` fail on a server before a line of this code ran. Here GLFW
-comes up on the first `Panel` that wants a window and `GLFW.initialize`
-returns `false` instead of throwing, so every failure on the way to a window
-degrades to an inert panel. Nothing needs a display: not the tests, not the
-docs build, not CI.
+**GLFW comes from GLFW.jl 4, and must stay down until a panel wants it.**
+Before 0.2.1 this package carried its own binding in `src/glfw/`, because
+GLFW.jl called `glfwInit()` from its `__init__` and threw when there was no
+display, which made `using StatusWindows` fail on a server before a line of
+this code ran. GLFW.jl 4 fixed that (the change went upstream from here):
+it initializes on first use, `GLFW.Init` returns `false` instead of
+throwing, and when nothing else works it falls back to GLFW's null
+platform. `Panel` treats the null platform as no window, so every failure
+on the way to a window degrades to an inert panel. Nothing needs a display:
+not the tests, not the docs build, not CI. Do not bring the vendored
+binding back, and do not pin `GLFW_jll` directly; GLFW.jl owns that.
 
-Keep it that way. If `StatusWindows.GLFW.isinitialized()` is true right
-after `using StatusWindows`, something has started calling GLFW at load time
-and the headless story is broken; there is a test for exactly that. Adding a
-GLFW call means adding a binding in `src/glfw/`, checked against GLFW.jl's
-for the signature, with anything borrowed recorded in `src/glfw/NOTICE.md`.
+Keep it that way. If `GLFW.is_initialized()` is true right after `using
+StatusWindows`, something has started calling GLFW at load time and the
+headless story is broken; there is a test for exactly that. Two GLFW.jl
+habits to remember: its error callback throws, so a GLFW call that fails
+raises a `GLFWError` (Wayland's refusal to position a window is the one
+that bites, hence `setpos!` and `positionable` in `src/panel.jl`), and it
+asserts thread 1 for most calls on every platform. `MOUSE_PASSTHROUGH` is
+defined locally only because GLFW.jl 4.0.0 does not name it yet.
 
 **The test suite must stay headless.** Tests draw into a bare Cairo image
 surface — no window, no GL context (`test/runtests.jl`, `testcanvas`).
