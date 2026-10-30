@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
 jobs:
   test:
-    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }}
+    name: Julia ${{ matrix.version }} - ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     permissions: # needed to allow julia-actions/cache to proactively delete old caches that it has created
@@ -28,26 +28,18 @@ jobs:
           - '1.12'
           - '1.13'
           - 'pre'
+        # Every version on every platform. setup-julia picks each runner's
+        # native architecture: x64 on Linux and Windows, Apple Silicon on
+        # macOS.
         os:
           - ubuntu-latest
-        arch:
-          - x64
-        include:
-          # The version sweep stays on Linux to keep the matrix small; these
-          # two exist to prove the package builds and runs off Linux at all,
-          # which nothing checked before.
-          - version: '1.12'
-            os: macos-latest      # Apple Silicon
-            arch: aarch64
-          - version: '1.12'
-            os: windows-latest
-            arch: x64
+          - macos-latest
+          - windows-latest
     steps:
       - uses: actions/checkout@v7
       - uses: julia-actions/setup-julia@v3
         with:
           version: ${{ matrix.version }}
-          arch: ${{ matrix.arch }}
       - uses: julia-actions/cache@v3
       # Deliberately no X server. Nothing here needs one -- the tests draw
       # into a bare Cairo surface and never open a window -- and running
